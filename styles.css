@@ -1,0 +1,1275 @@
+/* Marathoner base styles.
+   Structural colors (backgrounds, text, borders) follow the active Obsidian
+   theme via its CSS variables, so the plugin fits any theme. The accent
+   system below (status colors, progress signature) is intentionally a fixed
+   palette (Catppuccin Mocha) rather than theme-derived - these are the
+   plugin's own visual identity, scoped only to Marathoner's views. */
+
+.marathoner-watchlist,
+.marathoner-dashboard,
+.marathoner-detail {
+	--mrt-crust: #11111b;
+	--mrt-mantle: #181825;
+	--mrt-text: #cdd6f4;
+	--mrt-subtext0: #a6adc8;
+	--mrt-mauve: #cba6f7;
+	--mrt-green: #a6e3a1;
+	--mrt-blue: #89b4fa;
+	--mrt-peach: #fab387;
+	--mrt-teal: #94e2d5;
+	--mrt-red: #f38ba8;
+}
+
+.marathoner-search-result {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+
+.marathoner-search-result-poster {
+	width: 40px;
+	height: 60px;
+	object-fit: cover;
+	border-radius: 4px;
+	flex-shrink: 0;
+	background: var(--background-modifier-border);
+}
+
+.marathoner-search-result-info {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.marathoner-search-result-title-row {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+}
+
+.marathoner-search-result-title {
+	color: var(--text-normal);
+	font-weight: 500;
+}
+
+.marathoner-search-result-badge {
+	color: var(--mrt-crust, var(--text-on-accent));
+	background: var(--mrt-green, var(--interactive-accent));
+	font-size: var(--font-ui-smaller);
+	font-weight: 600;
+	padding: 1px 7px;
+	border-radius: var(--radius-s);
+	flex-shrink: 0;
+}
+
+.marathoner-search-result-type {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.marathoner-watchlist {
+	padding: var(--size-4-4);
+}
+
+.marathoner-toolbar {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	margin-bottom: var(--size-4-4);
+}
+
+.marathoner-toolbar-spacer {
+	flex: 1;
+}
+
+.marathoner-search-input {
+	min-width: 220px;
+	padding: var(--size-2-2) var(--size-4-2);
+	border-radius: var(--radius-m);
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-primary);
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+}
+
+.marathoner-search-input:focus {
+	outline: none;
+	border-color: var(--mrt-mauve, var(--interactive-accent));
+}
+
+.marathoner-status-heading {
+	margin-top: var(--size-4-6);
+	margin-bottom: var(--size-4-2);
+	color: var(--text-normal);
+}
+
+.marathoner-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+	gap: var(--size-4-4);
+}
+
+.marathoner-card {
+	position: relative;
+	cursor: pointer;
+	aspect-ratio: 2 / 3;
+	border-radius: var(--radius-l);
+	overflow: hidden;
+	background: var(--mrt-mantle);
+	transition:
+		transform 0.15s ease,
+		box-shadow 0.15s ease;
+}
+
+.marathoner-card:hover {
+	transform: translateY(-3px);
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.marathoner-card-poster-wrap {
+	position: absolute;
+	inset: 0;
+}
+
+.marathoner-card-poster {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.marathoner-card-poster-placeholder {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	height: 100%;
+	font-size: 2.4em;
+	color: var(--mrt-subtext0);
+	background: var(--mrt-mantle);
+}
+
+.marathoner-status-badge {
+	position: absolute;
+	top: var(--size-2-2);
+	left: var(--size-2-2);
+	z-index: 2;
+	padding: 2px 8px;
+	border-radius: 999px;
+	font-size: 10px;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--mrt-crust);
+	box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.marathoner-status-badge-watching {
+	background: var(--mrt-green);
+}
+
+.marathoner-status-badge-planned {
+	background: var(--mrt-blue);
+}
+
+.marathoner-status-badge-paused {
+	background: var(--mrt-peach);
+}
+
+.marathoner-status-badge-completed {
+	background: var(--mrt-teal);
+}
+
+.marathoner-status-badge-dropped {
+	background: var(--mrt-red);
+}
+
+/* The glass info panel anchored to the bottom of the poster. The blur+gradient
+   background lives on a ::before pseudo-element, positioned behind the text -
+   NOT on .marathoner-card-info itself. Masking the panel directly would mask
+   its text children too (mask-image applies to the whole element, not just
+   its own background), which is exactly what made titles look faded/washed
+   out near the top of the panel. Keeping the mask on a separate background
+   layer means the text in front stays fully opaque no matter where it sits. */
+.marathoner-card-info {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	z-index: 1;
+	padding: var(--size-4-3) var(--size-4-2) var(--size-4-2);
+}
+
+.marathoner-card-info::before {
+	content: "";
+	position: absolute;
+	inset: 0;
+	z-index: -1;
+	background: linear-gradient(
+		to top,
+		rgba(17, 17, 27, 0.96) 0%,
+		rgba(17, 17, 27, 0.88) 30%,
+		rgba(17, 17, 27, 0.5) 65%,
+		rgba(17, 17, 27, 0) 100%
+	);
+	backdrop-filter: blur(9px);
+	-webkit-backdrop-filter: blur(9px);
+	-webkit-mask-image: linear-gradient(to top, black 0%, black 55%, transparent 100%);
+	mask-image: linear-gradient(to top, black 0%, black 55%, transparent 100%);
+}
+
+.marathoner-card-title {
+	color: var(--mrt-text);
+	font-size: var(--font-ui-small);
+	font-weight: 600;
+	line-height: 1.25;
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+}
+
+.marathoner-card-meta {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	margin-top: 3px;
+}
+
+.marathoner-type-chip {
+	font-size: 10px;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.03em;
+}
+
+.marathoner-type-chip-movie {
+	color: var(--mrt-blue);
+}
+
+.marathoner-type-chip-tv {
+	color: var(--mrt-mauve);
+}
+
+.marathoner-card-year {
+	color: var(--mrt-subtext0);
+	font-size: 10px;
+}
+
+.marathoner-card-rating {
+	color: var(--mrt-peach);
+	font-size: 10px;
+}
+
+/* Signature progress element: a filmstrip-style track with sprocket
+   perforations along both edges, evoking a reel of film - ties the
+   "marathon" progress concept to the movie/TV subject matter. Kept
+   deliberately slim so it doesn't compete with the poster or the title. */
+.marathoner-card-progress-wrap {
+	position: relative;
+	height: 4px;
+	margin-top: var(--size-2-2);
+	border-radius: 2px;
+	background: repeating-linear-gradient(
+		to right,
+		rgba(205, 214, 244, 0.15) 0,
+		rgba(205, 214, 244, 0.15) 2px,
+		transparent 2px,
+		transparent 5px
+	);
+}
+
+.marathoner-card-progress-track {
+	position: absolute;
+	inset: 1px 0;
+	border-radius: 2px;
+	background: rgba(17, 17, 27, 0.6);
+}
+
+.marathoner-card-progress-bar {
+	position: absolute;
+	inset: 1px auto 1px 0;
+	width: 0%;
+	border-radius: 2px;
+	background: var(--mrt-mauve);
+	transition: width 0.25s ease;
+}
+
+.marathoner-card-progress-label {
+	margin-top: 2px;
+	color: var(--mrt-subtext0);
+	font-size: 9px;
+	font-family: var(--font-monospace);
+	text-align: right;
+}
+
+.marathoner-empty-state {
+	color: var(--text-muted);
+	padding: var(--size-4-4);
+}
+
+.marathoner-shelf {
+	display: flex;
+	gap: var(--size-4-4);
+	overflow-x: auto;
+	padding-bottom: var(--size-2-2);
+}
+
+.marathoner-card-shelf {
+	flex-shrink: 0;
+	width: 160px;
+}
+
+.marathoner-card-favorite {
+	position: absolute;
+	top: var(--size-2-2);
+	right: var(--size-2-2);
+	z-index: 2;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	border-radius: 999px;
+	background: rgba(17, 17, 27, 0.55);
+	color: var(--mrt-text);
+	cursor: pointer;
+}
+
+.marathoner-card-favorite svg {
+	width: 13px;
+	height: 13px;
+	fill: none;
+}
+
+.marathoner-card-favorite-active {
+	color: var(--mrt-red);
+}
+
+.marathoner-card-favorite-active svg {
+	fill: currentColor;
+}
+
+.marathoner-detail-title-row {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+}
+
+.marathoner-favorite-btn {
+	color: var(--text-muted);
+}
+
+.marathoner-favorite-btn.marathoner-favorite-active {
+	color: var(--mrt-red, #f38ba8);
+}
+
+.marathoner-favorite-btn.marathoner-favorite-active svg {
+	fill: currentColor;
+}
+
+.marathoner-detail {
+	padding: var(--size-4-4);
+}
+
+.marathoner-detail-loading {
+	color: var(--text-muted);
+}
+
+.marathoner-offline-notice {
+	color: var(--text-normal);
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	padding: var(--size-4-3);
+	font-size: var(--font-ui-small);
+	line-height: 1.5;
+}
+
+.marathoner-offline-error {
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	font-family: var(--font-monospace);
+}
+
+.marathoner-detail-header {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--size-4-4);
+	margin-bottom: var(--size-4-4);
+}
+
+.marathoner-detail-poster {
+	width: 180px;
+	aspect-ratio: 2 / 3;
+	height: auto;
+	border-radius: var(--radius-m);
+	flex-shrink: 0;
+	object-fit: cover;
+}
+
+.marathoner-detail-info {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-2);
+	min-width: 0;
+}
+
+.marathoner-detail-overview {
+	color: var(--text-muted);
+	line-height: 1.5;
+}
+
+.marathoner-sync-row {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-1);
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+}
+
+.marathoner-sync-label {
+	white-space: nowrap;
+}
+
+.marathoner-sync-btn {
+	width: 22px;
+	height: 22px;
+	padding: 0;
+	color: var(--text-faint);
+	box-shadow: none;
+	background: transparent;
+}
+
+.marathoner-sync-btn:hover {
+	color: var(--text-accent);
+	background: var(--background-modifier-hover);
+}
+
+.marathoner-sync-btn.marathoner-spin svg {
+	animation: marathoner-spin 0.8s linear infinite;
+}
+
+@keyframes marathoner-spin {
+	from {
+		transform: rotate(0deg);
+	}
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+.marathoner-detail-controls {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-4);
+	flex-wrap: wrap;
+	margin-top: var(--size-4-2);
+}
+
+.marathoner-rating-wrapper {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	color: var(--text-normal);
+}
+
+.marathoner-rating-label {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
+
+.marathoner-status-hint {
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	font-style: italic;
+}
+
+.marathoner-upcoming {
+	padding: var(--size-4-4);
+}
+
+.marathoner-upcoming-group-count {
+	color: var(--text-faint);
+	font-weight: 400;
+}
+
+.marathoner-upcoming-list {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+	margin-bottom: var(--size-4-5);
+	border-radius: var(--radius-m);
+	overflow: hidden;
+}
+
+.marathoner-upcoming-row {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-3);
+	padding: var(--size-4-2) var(--size-4-3);
+	background: var(--mrt-mantle);
+	cursor: pointer;
+}
+
+.marathoner-upcoming-row:hover {
+	background: var(--background-modifier-hover);
+}
+
+.marathoner-upcoming-row-thumb {
+	flex-shrink: 0;
+	width: 40px;
+	aspect-ratio: 2 / 3;
+	object-fit: cover;
+	border-radius: var(--radius-s);
+	background: var(--background-primary);
+}
+
+.marathoner-upcoming-row-thumb-placeholder {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--mrt-subtext0);
+	font-size: 1.1em;
+}
+
+.marathoner-upcoming-row-info {
+	flex: 1;
+	min-width: 0;
+}
+
+.marathoner-upcoming-row-title-line {
+	display: flex;
+	align-items: baseline;
+}
+
+.marathoner-upcoming-row-title {
+	color: var(--text-normal);
+	font-weight: 600;
+	font-size: var(--font-ui-small);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.marathoner-upcoming-row-meta {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	margin-top: 2px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.marathoner-upcoming-row-meta-item {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.marathoner-upcoming-row-countdown {
+	flex-shrink: 0;
+	display: flex;
+	align-items: baseline;
+	gap: 4px;
+	color: var(--mrt-mauve, var(--interactive-accent));
+	font-weight: 700;
+	font-size: var(--font-ui-small);
+}
+
+.marathoner-upcoming-row-countdown-days {
+	font-size: var(--font-ui-medium);
+}
+
+.marathoner-upcoming-row-countdown-unit {
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	font-weight: 500;
+}
+
+.marathoner-upcoming-row-actions {
+	flex-shrink: 0;
+	display: flex;
+	gap: 2px;
+}
+
+.marathoner-upcoming-row-action {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 26px;
+	height: 26px;
+	border-radius: var(--radius-s);
+	color: var(--text-faint);
+	cursor: pointer;
+}
+
+.marathoner-upcoming-row-action:hover {
+	color: var(--text-accent);
+	background: var(--background-modifier-hover);
+}
+
+.marathoner-upcoming-row-action svg {
+	width: 15px;
+	height: 15px;
+}
+
+.marathoner-star-rating {
+	display: flex;
+	gap: 2px;
+}
+
+.marathoner-star {
+	display: flex;
+	cursor: pointer;
+	color: var(--text-faint);
+}
+
+.marathoner-star svg {
+	width: 15px;
+	height: 15px;
+	fill: none;
+}
+
+.marathoner-star-filled {
+	color: var(--mrt-peach, #fab387);
+}
+
+.marathoner-star-filled svg {
+	fill: currentColor;
+}
+
+.marathoner-rating-value {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	font-family: var(--font-monospace);
+	min-width: 1.2em;
+}
+
+.marathoner-next-episode {
+	color: var(--text-accent);
+	font-size: var(--font-ui-small);
+	margin-bottom: var(--size-4-4);
+}
+
+.marathoner-seasons {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-2-2);
+}
+
+.marathoner-season {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	overflow: hidden;
+}
+
+.marathoner-season-header {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	padding: var(--size-4-2) var(--size-4-3);
+	cursor: pointer;
+	background: var(--background-secondary);
+}
+
+.marathoner-season-toggle {
+	color: var(--text-muted);
+	width: 1em;
+}
+
+.marathoner-season-mark-btn {
+	margin-left: auto;
+}
+
+.marathoner-episodes {
+	display: flex;
+	flex-direction: column;
+	padding: var(--size-4-2) var(--size-4-3);
+}
+
+.marathoner-episode-row {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-3);
+	padding: var(--size-2-2) var(--size-2-2);
+	border-radius: var(--radius-s);
+	cursor: pointer;
+}
+
+.marathoner-episode-row:hover {
+	background: var(--background-modifier-hover);
+}
+
+.marathoner-episode-toggle {
+	display: flex;
+	align-items: center;
+	color: var(--text-faint);
+	flex-shrink: 0;
+}
+
+.marathoner-episode-toggle svg {
+	width: 18px;
+	height: 18px;
+}
+
+.marathoner-episode-toggle-active {
+	color: var(--mrt-green, #a6e3a1);
+}
+
+.marathoner-episode-toggle-active svg {
+	fill: currentColor;
+	fill-opacity: 0.18;
+}
+
+.marathoner-episode-title {
+	flex: 1;
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+}
+
+.marathoner-episode-date {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.marathoner-episode-future {
+	cursor: default;
+	opacity: 0.55;
+}
+
+.marathoner-episode-future:hover {
+	background: transparent;
+}
+
+.marathoner-episode-future-badge {
+	color: var(--mrt-peach, #fab387);
+	font-size: var(--font-ui-smaller);
+	font-weight: 500;
+	flex-shrink: 0;
+}
+
+.marathoner-chip-row,
+.marathoner-person-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--size-4-2);
+	font-size: var(--font-ui-small);
+}
+
+.marathoner-studio-chip {
+	color: var(--mrt-subtext0, var(--text-muted));
+}
+
+.marathoner-studio-chip:not(:last-of-type)::after {
+	content: "\00B7";
+	margin-left: var(--size-4-2);
+	color: var(--text-faint);
+}
+
+.marathoner-chip-more {
+	color: var(--mrt-mauve, var(--interactive-accent));
+	cursor: pointer;
+	font-size: var(--font-ui-smaller);
+}
+
+.marathoner-person-label {
+	color: var(--text-muted);
+	font-weight: 600;
+}
+
+.marathoner-stats-row {
+	display: flex;
+	gap: var(--size-4-4);
+	margin: var(--size-4-3) 0;
+	flex-wrap: wrap;
+}
+
+.marathoner-stat-chip {
+	min-width: 70px;
+	padding: var(--size-4-2) var(--size-4-3);
+	border-radius: var(--radius-m);
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+}
+
+.marathoner-stat-chip-value {
+	font-size: var(--font-ui-large);
+	font-weight: 700;
+	color: var(--text-normal);
+}
+
+.marathoner-stat-chip-label {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	margin-top: 2px;
+}
+
+.marathoner-community-rating {
+	padding: 2px 8px;
+	border-radius: var(--radius-s);
+	background: var(--mrt-blue, var(--interactive-accent));
+	color: var(--mrt-crust, var(--text-on-accent));
+	font-size: var(--font-ui-smaller);
+	font-weight: 600;
+}
+
+.marathoner-dates-row {
+	display: flex;
+	gap: var(--size-4-5);
+	flex-wrap: wrap;
+	margin-top: var(--size-4-3);
+}
+
+.marathoner-date-field {
+	display: flex;
+	align-items: center;
+	gap: var(--size-2-2);
+}
+
+.marathoner-date-label {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
+
+.marathoner-date-input {
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	color: var(--text-normal);
+	padding: 2px 6px;
+	font-size: var(--font-ui-small);
+}
+
+.marathoner-date-value-readonly {
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+}
+
+.marathoner-notes-section {
+	margin-top: var(--size-4-6);
+}
+
+.marathoner-notes-textarea {
+	width: 100%;
+	min-height: 120px;
+	resize: vertical;
+	padding: var(--size-4-3);
+	border-radius: var(--radius-m);
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-primary);
+	color: var(--text-normal);
+	font-family: var(--font-text);
+	font-size: var(--font-ui-small);
+}
+
+.marathoner-delete-row {
+	margin-top: var(--size-4-6);
+	padding-top: var(--size-4-4);
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.marathoner-person-layout {
+	display: grid;
+	grid-template-columns: 220px 1fr;
+	gap: var(--size-4-6);
+	align-items: start;
+}
+
+.marathoner-person-sidebar {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-4);
+	min-width: 0;
+}
+
+.marathoner-person-photo-large {
+	width: 100%;
+	aspect-ratio: 2 / 3;
+	object-fit: cover;
+	border-radius: var(--radius-l);
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.marathoner-person-photo-placeholder {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	aspect-ratio: 2 / 3;
+	font-size: 3em;
+	color: var(--mrt-subtext0);
+	background: var(--mrt-mantle);
+	border-radius: var(--radius-l);
+}
+
+.marathoner-person-facts-list {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-3);
+}
+
+.marathoner-person-fact-label {
+	color: var(--mrt-text);
+	font-size: var(--font-ui-smaller);
+	font-weight: 700;
+}
+
+.marathoner-person-fact-value {
+	margin-top: 2px;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	line-height: 1.4;
+	white-space: pre-line;
+}
+
+.marathoner-person-main {
+	min-width: 0;
+}
+
+.marathoner-person-name {
+	margin: 0 0 var(--size-4-3);
+}
+
+.marathoner-person-bio {
+	margin-bottom: var(--size-4-5);
+	white-space: pre-line;
+}
+
+.marathoner-person-filmography-heading {
+	margin: 0 0 var(--size-4-3);
+}
+
+.marathoner-person-link {
+	cursor: pointer;
+	color: var(--mrt-mauve, var(--interactive-accent));
+	text-decoration: none;
+}
+
+.marathoner-person-link:hover {
+	text-decoration: underline;
+}
+
+@media (max-width: 640px) {
+	.marathoner-person-layout {
+		grid-template-columns: 1fr;
+	}
+
+	.marathoner-person-photo-large,
+	.marathoner-person-photo-placeholder {
+		max-width: 200px;
+	}
+}
+
+.marathoner-filmography-add-badge {
+	position: absolute;
+	top: var(--size-2-2);
+	left: var(--size-2-2);
+	z-index: 2;
+	padding: 2px 8px;
+	border-radius: 999px;
+	font-size: 10px;
+	font-weight: 700;
+	color: var(--mrt-crust, #11111b);
+	background: var(--mrt-mauve, #cba6f7);
+}
+
+.marathoner-filmography-role {
+	color: var(--mrt-subtext0, var(--text-muted));
+	font-size: 10px;
+	margin-top: 1px;
+}
+
+.marathoner-confirm-buttons {
+	display: flex;
+	justify-content: flex-end;
+	gap: var(--size-4-2);
+	margin-top: var(--size-4-4);
+}
+
+/* Per-season accent color, cycled through the Catppuccin palette for visual variety. */
+.marathoner-season-header {
+	border-left: 3px solid var(--marathoner-season-accent, var(--mrt-mauve));
+}
+
+.marathoner-dashboard {
+	padding: var(--size-4-4);
+}
+
+.marathoner-section-heading {
+	margin-top: var(--size-4-6);
+	margin-bottom: var(--size-4-2);
+	color: var(--text-normal);
+}
+
+.marathoner-summary-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+	gap: var(--size-4-3);
+}
+
+.marathoner-stat-card {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	padding: var(--size-4-3);
+	background: var(--background-secondary);
+}
+
+.marathoner-stat-label {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
+
+.marathoner-stat-value {
+	color: var(--text-normal);
+	font-size: var(--font-ui-larger);
+	font-weight: 700;
+	margin-top: var(--size-2-2);
+}
+
+.marathoner-stat-subtext {
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	margin-top: var(--size-2-1);
+}
+
+.marathoner-recent-poster-wrap {
+	position: relative;
+}
+
+.marathoner-type-badge {
+	position: absolute;
+	top: var(--size-2-2);
+	left: var(--size-2-2);
+	padding: 1px 6px;
+	border-radius: var(--radius-s);
+	font-size: var(--font-ui-smaller);
+	font-weight: 600;
+	color: var(--mrt-crust);
+	text-transform: uppercase;
+	letter-spacing: 0.02em;
+}
+
+.marathoner-type-badge-movie {
+	background: var(--mrt-blue);
+}
+
+.marathoner-type-badge-tv {
+	background: var(--mrt-mauve);
+}
+
+.marathoner-recent-row {
+	display: flex;
+	gap: var(--size-4-3);
+	overflow-x: auto;
+	padding-bottom: var(--size-2-2);
+}
+
+.marathoner-recent-item {
+	cursor: pointer;
+	flex-shrink: 0;
+	width: 110px;
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-2-2);
+}
+
+.marathoner-recent-poster {
+	width: 110px;
+	aspect-ratio: 2 / 3;
+	object-fit: cover;
+	border-radius: var(--radius-m);
+	background: var(--background-modifier-border);
+}
+
+.marathoner-recent-title {
+	color: var(--text-normal);
+	font-size: var(--font-ui-smaller);
+	line-height: 1.3;
+}
+
+.marathoner-nerd-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+	gap: var(--size-4-3);
+}
+
+.marathoner-nerd-box {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	padding: var(--size-4-3);
+}
+
+.marathoner-nerd-box-title {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	font-weight: 600;
+	margin-bottom: var(--size-4-2);
+	text-transform: uppercase;
+	letter-spacing: 0.02em;
+}
+
+.marathoner-nerd-row {
+	display: flex;
+	justify-content: space-between;
+	padding: var(--size-2-1) 0;
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+}
+
+.marathoner-nerd-row-count {
+	color: var(--text-muted);
+}
+
+.marathoner-nerd-empty {
+	color: var(--text-faint);
+	font-size: var(--font-ui-small);
+}
+
+.marathoner-log-view {
+	padding: var(--size-4-4);
+}
+
+.marathoner-log-list {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+	border-radius: var(--radius-m);
+	overflow: hidden;
+}
+
+.marathoner-log-row {
+	display: flex;
+	align-items: baseline;
+	gap: var(--size-4-3);
+	padding: var(--size-4-2) var(--size-4-3);
+	background: var(--mrt-mantle);
+}
+
+.marathoner-log-time {
+	flex-shrink: 0;
+	width: 4.5em;
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	font-family: var(--font-monospace);
+}
+
+.marathoner-log-message {
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+}
+
+.marathoner-migrate-modal {
+	max-width: 520px;
+}
+
+.marathoner-migrate-intro {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
+
+.marathoner-migrate-row {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-3);
+	margin: var(--size-4-3) 0;
+}
+
+.marathoner-migrate-label {
+	flex-shrink: 0;
+	width: 11em;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
+
+.marathoner-migrate-instructions {
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	font-style: italic;
+}
+
+.marathoner-migrate-file-status {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
+
+.marathoner-migrate-summary p {
+	margin: var(--size-4-1) 0;
+}
+
+.marathoner-migrate-progress {
+	color: var(--text-accent);
+	font-size: var(--font-ui-small);
+	min-height: 1.5em;
+}
+
+.marathoner-migrate-result-summary {
+	font-weight: 600;
+}
+
+.marathoner-migrate-unmatched-list {
+	max-height: 180px;
+	overflow-y: auto;
+	border-radius: var(--radius-m);
+	background: var(--mrt-mantle);
+	padding: var(--size-4-2);
+}
+
+.marathoner-migrate-unmatched-row {
+	padding: 2px 0;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.marathoner-upcoming-filter {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+}
+
+.marathoner-upcoming-filter-label {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
+
+.marathoner-filter-row {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: var(--size-4-2);
+	margin-bottom: var(--size-4-4);
+}
+
+.marathoner-filter-toggle {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-1);
+	padding: 4px 10px;
+	border-radius: var(--radius-m);
+	border: 1px solid var(--background-modifier-border);
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	cursor: pointer;
+	user-select: none;
+}
+
+.marathoner-filter-toggle:hover {
+	background: var(--background-modifier-hover);
+}
+
+.marathoner-filter-toggle-icon svg {
+	width: 13px;
+	height: 13px;
+}
+
+.marathoner-filter-toggle-active {
+	color: var(--mrt-red, #f38ba8);
+	border-color: var(--mrt-red, #f38ba8);
+}
+
+.marathoner-filter-toggle-active .marathoner-filter-toggle-icon svg {
+	fill: var(--mrt-red, #f38ba8);
+}

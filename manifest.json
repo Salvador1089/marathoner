@@ -1,0 +1,11 @@
+{
+  "id": "marathoner",
+  "name": "Marathoner",
+  "version": "0.1.0",
+  "minAppVersion": "1.5.0",
+  "description": "Track movies and TV shows with automatic upcoming releases, powered by TMDB.",
+  "author": "Salvador",
+  "authorUrl": "",
+  "fundingUrl": "",
+  "isDesktopOnly": false
+}
