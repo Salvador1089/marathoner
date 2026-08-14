@@ -6,8 +6,26 @@ Every title and person is a real Markdown note, fully readable and
 searchable like the rest of your vault, and everything works offline once
 it's been added.
 
-<!-- Add a screenshot or two here once you have them, e.g.: -->
-<!-- ![Watchlist screenshot](docs/screenshot-watchlist.png) -->
+<details>
+<summary>Marathoner Screenshots</summary>
+
+### Dashboard
+![Dashboard](assets/Dashboard_Marathoner.png)
+
+### Watchlist
+![Watchlist](assets/Watchlist_Marathoner1.png)
+![Watchlist Settings](assets/Watchlist_Marathoner2.png)
+
+### Upcoming
+![Upcoming](assets/Upcoming_Marathoner.png)
+
+### Title Note
+![Title](assets/Title_Marathoner.png)
+
+### Person Note
+![Person](assets/Person_Marathoner.png)
+
+</details>
 
 ## Features
 
