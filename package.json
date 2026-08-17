@@ -1,6 +1,6 @@
 {
   "name": "marathoner",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Track movies and TV shows with automatic upcoming releases, powered by TMDB.",
   "main": "main.js",
   "scripts": {
