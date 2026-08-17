@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, ButtonComponent, DropdownComponent, ToggleComponent, setIcon } from "obsidian";
+import { ItemView, WorkspaceLeaf, ButtonComponent, DropdownComponent, setIcon } from "obsidian";
 import type MarathonerPlugin from "../main";
 import { getLibraryEntries, LibraryEntry } from "../notes";
 import { computeWatchlistSections } from "../watchlist-sections";
