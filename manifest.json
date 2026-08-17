@@ -1,11 +1,14 @@
 {
-	"id": "marathoner",
-	"name": "Marathoner",
-	"version": "1.0.0",
-	"minAppVersion": "1.5.0",
-	"description": "Track movies and TV shows with automatic upcoming releases, powered by TMDB.",
-	"author": "Salvador",
-	"authorUrl": "",
-	"fundingUrl": "",
-	"isDesktopOnly": false
+  "id": "marathoner",
+  "name": "Marathoner",
+  "version": "1.0.0",
+  "minAppVersion": "1.5.0",
+  "description": "Track movies and TV shows with automatic upcoming releases, powered by TMDB.",
+  "author": "Salvador",
+  "authorUrl": "https://github.com/Salvador1089",
+  "fundingUrl": {
+    "Buy Me a Coffee": "https://buymeacoffee.com/salvador1089",
+    "Ko-fi": "https://ko-fi.com/salvador1089"
+  },
+  "isDesktopOnly": false
 }
