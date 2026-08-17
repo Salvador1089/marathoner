@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+
+# Build output
+main.js
+*.js.map
+
+# Local settings and data - contains the user's TMDB API key, never commit
+data.json
+
+# OS / editor
+.DS_Store
+.vscode/
+*.log
+
+# Local Obsidian test vault
+test-vault/
