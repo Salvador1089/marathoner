@@ -34,6 +34,8 @@ it's been added.
   and filters (type, status, rating, favorites) - all individually toggleable.
 - **Per-episode tracking** for TV shows, with automatic status completion
   when every aired episode is watched.
+- **Per-episode ratings** on the same 1-10 scale as the overall show or movie
+  rating.
 - **Offline-first**: synopsis, cast, crew, season/episode data, filmography,
   and posters are all cached locally at add time. Opening a note never hits
   the network - only a scheduled refresh (daily/weekly/manual, your choice)
@@ -78,12 +80,13 @@ under Settings > API).
 
 From there you can also set the library/people folder locations, the
 automatic refresh frequency, whether to create person notes for cast/directors,
-and whether to store poster/photo images locally in the vault.
+and whether to store poster/photo images locally in the vault. Enabling local
+images automatically fills in missing posters and photos in the background.
 
 ## Data model
 
 Each title and person is stored as a regular Markdown note with structured
-frontmatter (status, rating, dates, cast, watched episodes, cached TMDB
+frontmatter (status, overall and episode ratings, dates, cast, watched episodes, cached TMDB
 metadata, etc.) plus a free-form `## Notes` section you can write in
 yourself. Nothing is hidden in a database - open any note directly to see
 exactly what's stored.

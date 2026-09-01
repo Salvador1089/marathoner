@@ -7,6 +7,7 @@ import {
 	Notice,
 	debounce,
 	setIcon,
+	ViewStateResult,
 } from "obsidian";
 import type MarathonerPlugin from "../main";
 import { resolveImageSrc } from "../image-cache";
@@ -21,8 +22,12 @@ import {
 	TitleFrontmatter,
 	WatchStatus,
 	WatchedMap,
+	EpisodeRatingMap,
 	CachedSeason,
+	CURRENT_SCHEMA_VERSION,
 	toggleEpisode,
+	getEpisodeRating,
+	setEpisodeRating,
 	markSeasonWatched,
 	unmarkSeasonWatched,
 	applyTvCompletionRule,
@@ -54,6 +59,10 @@ export class DetailView extends ItemView {
 	// cache re-indexes asynchronously and can briefly lag behind, which caused
 	// the season buttons to show stale counts and need multiple clicks to "catch up".
 	private currentWatched: WatchedMap = {};
+	// Same local-first mirror as currentWatched, so several episode ratings can
+	// be changed quickly without an asynchronous metadata-cache read losing one.
+	private currentEpisodeRatings: EpisodeRatingMap = {};
+	private episodeRatingSaveQueue: Promise<void> = Promise.resolve();
 	// Authoritative local copy of the frontmatter, mirrored on every write via
 	// updateFrontmatter(). Lets us re-render the header (status, stats, dates)
 	// immediately after marking episodes/seasons, without waiting for
@@ -92,17 +101,42 @@ export class DetailView extends ItemView {
 
 	async onOpen(): Promise<void> {
 		if (!this.filePath) {
-			this.contentEl.empty();
-			this.contentEl.createEl("p", { text: "No title selected." });
+			this.renderNoTitleSelected();
 		}
 	}
 
-	/** Called directly by whoever opens this view, instead of relying on setState/getState. */
+	getState(): Record<string, unknown> {
+		return this.filePath ? { filePath: this.filePath } : {};
+	}
+
+	async setState(state: unknown, _result: ViewStateResult): Promise<void> {
+		const filePath =
+			state && typeof state === "object" && "filePath" in state && typeof state.filePath === "string"
+				? state.filePath
+				: null;
+		await this.setFilePath(filePath);
+	}
+
 	async setFile(file: TFile): Promise<void> {
-		this.filePath = file.path;
+		await this.setFilePath(file.path);
+	}
+
+	private async setFilePath(filePath: string | null): Promise<void> {
+		// Finish queued writes while getFile() still points at their source note.
+		await this.episodeRatingSaveQueue;
+		this.filePath = filePath;
 		this.expandedSeasons.clear();
 		this.cachedSeasons = [];
+		if (!filePath) {
+			this.renderNoTitleSelected();
+			return;
+		}
 		await this.loadDetail();
+	}
+
+	private renderNoTitleSelected(): void {
+		this.contentEl.empty();
+		this.contentEl.createEl("p", { text: "No title selected." });
 	}
 
 	async onClose(): Promise<void> {}
@@ -150,6 +184,7 @@ export class DetailView extends ItemView {
 		if (fm.type !== "tv") return;
 
 		this.currentWatched = { ...(fm.watched ?? {}) };
+		this.currentEpisodeRatings = { ...(fm.episode_ratings ?? {}) };
 		this.cachedSeasons = await readEpisodesCache(this.app, file);
 
 		const dynamicContainer = container.createDiv({ cls: "marathoner-detail-dynamic" });
@@ -658,6 +693,8 @@ export class DetailView extends ItemView {
 				continue;
 			}
 
+			this.renderEpisodeRating(row, seasonNumber, episode.number);
+
 			const handleToggle = async () => {
 				watched = !watched;
 				paintToggle();
@@ -690,6 +727,68 @@ export class DetailView extends ItemView {
 			// the note.
 			row.addEventListener("click", () => void handleToggle());
 		}
+	}
+
+	private renderEpisodeRating(container: HTMLElement, season: number, episode: number): void {
+		let currentRating = getEpisodeRating(this.currentEpisodeRatings, season, episode);
+		const wrapper = container.createDiv({
+			cls: "marathoner-episode-rating",
+			attr: { "aria-label": `Episode rating${currentRating !== null ? `: ${currentRating} out of 10` : ""}` },
+		});
+		const stars: HTMLElement[] = [];
+		const valueLabel = wrapper.createSpan({
+			cls: "marathoner-episode-rating-value",
+			text: currentRating !== null ? String(currentRating) : "-",
+		});
+
+		const paint = (value: number): void => {
+			stars.forEach((star, i) => star.toggleClass("marathoner-star-filled", i < value));
+		};
+
+		for (let i = 1; i <= 10; i++) {
+			const star = wrapper.createDiv({
+				cls: "marathoner-star marathoner-episode-rating-star",
+				attr: { "aria-label": `Rate ${i} out of 10`, role: "button", tabindex: "0" },
+			});
+			setIcon(star, "star");
+			stars.push(star);
+
+			star.addEventListener("mouseenter", () => paint(i));
+			const saveRating = async (): Promise<void> => {
+				const next = currentRating === i ? null : i;
+				currentRating = next;
+				valueLabel.setText(next !== null ? String(next) : "-");
+				wrapper.setAttribute("aria-label", `Episode rating${next !== null ? `: ${next} out of 10` : ""}`);
+				paint(next ?? 0);
+
+				const nextRatings = setEpisodeRating(this.currentEpisodeRatings, season, episode, next);
+				// Advance the local source of truth before awaiting disk I/O. A second
+				// quick click must build on this change, not on the previous map.
+				this.currentEpisodeRatings = nextRatings;
+				this.episodeRatingSaveQueue = this.episodeRatingSaveQueue.then(() =>
+					this.updateFrontmatter((fm) => {
+						fm.episode_ratings = nextRatings;
+						fm.schema_version = CURRENT_SCHEMA_VERSION;
+					})
+				);
+				await this.episodeRatingSaveQueue;
+			};
+
+			star.addEventListener("click", (event) => {
+				event.stopPropagation();
+				void saveRating();
+			});
+			star.addEventListener("keydown", (event) => {
+				if (event.key !== "Enter" && event.key !== " ") return;
+				event.preventDefault();
+				event.stopPropagation();
+				void saveRating();
+			});
+		}
+
+		wrapper.addEventListener("click", (event) => event.stopPropagation());
+		wrapper.addEventListener("mouseleave", () => paint(currentRating ?? 0));
+		paint(currentRating ?? 0);
 	}
 
 	private async updateFrontmatter(

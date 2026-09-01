@@ -1,5 +1,5 @@
 import { App, TFile } from "obsidian";
-import { VIEW_TYPE_PERSON_DETAIL, PersonDetailView } from "./person-detail-view";
+import { VIEW_TYPE_PERSON_DETAIL } from "./person-detail-view";
 import { createOrOpenPersonNote, findExistingPersonNote, backfillPersonNoteIfIncomplete } from "../people";
 import { TmdbClient } from "../tmdb/client";
 import type { MarathonerSettings } from "../settings";
@@ -7,12 +7,7 @@ import { ConfirmModal } from "../ui/confirm-modal";
 
 async function showInView(app: App, file: TFile): Promise<void> {
 	const leaf = app.workspace.getLeaf(false);
-	await leaf.setViewState({ type: VIEW_TYPE_PERSON_DETAIL, active: true });
-
-	const view = leaf.view;
-	if (view instanceof PersonDetailView) {
-		await view.setFile(file);
-	}
+	await leaf.setViewState({ type: VIEW_TYPE_PERSON_DETAIL, state: { filePath: file.path }, active: true });
 
 	app.workspace.revealLeaf(leaf);
 }

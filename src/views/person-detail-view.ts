@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, TFile, ButtonComponent, Notice } from "obsidian";
+import { ItemView, WorkspaceLeaf, TFile, ButtonComponent, Notice, ViewStateResult } from "obsidian";
 import type MarathonerPlugin from "../main";
 import { resolveImageSrc } from "../image-cache";
 import { parsePersonFrontmatter, readBiography, readFilmographyCache } from "../people";
@@ -45,14 +45,35 @@ export class PersonDetailView extends ItemView {
 
 	async onOpen(): Promise<void> {
 		if (!this.filePath) {
-			this.contentEl.empty();
-			this.contentEl.createEl("p", { text: "No person selected." });
+			this.renderNoPersonSelected();
+		}
+	}
+
+	getState(): Record<string, unknown> {
+		return this.filePath ? { filePath: this.filePath } : {};
+	}
+
+	async setState(state: unknown, _result: ViewStateResult): Promise<void> {
+		const filePath =
+			state && typeof state === "object" && "filePath" in state && typeof state.filePath === "string"
+				? state.filePath
+				: null;
+		this.filePath = filePath;
+		if (filePath) {
+			await this.render();
+		} else {
+			this.renderNoPersonSelected();
 		}
 	}
 
 	async setFile(file: TFile): Promise<void> {
 		this.filePath = file.path;
 		await this.render();
+	}
+
+	private renderNoPersonSelected(): void {
+		this.contentEl.empty();
+		this.contentEl.createEl("p", { text: "No person selected." });
 	}
 
 	async onClose(): Promise<void> {}

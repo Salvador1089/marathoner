@@ -1,4 +1,4 @@
-export const CURRENT_SCHEMA_VERSION = 7;
+export const CURRENT_SCHEMA_VERSION = 8;
 
 export type MediaType = "movie" | "tv";
 
@@ -6,6 +6,9 @@ export type WatchStatus = "watching" | "completed" | "planned" | "paused" | "dro
 
 /** Key = season number, value = array of watched episode numbers. */
 export type WatchedMap = Record<number, number[]>;
+
+/** Key = season number, then episode number, value = personal rating (1-10). */
+export type EpisodeRatingMap = Record<number, Record<number, number>>;
 
 /**
  * Exact shape of the YAML frontmatter for each title note.
@@ -24,6 +27,7 @@ export interface TitleFrontmatter {
 	date_started: string | null;
 	date_completed: string | null;
 	watched?: WatchedMap; // only relevant for type: "tv"
+	episode_ratings?: EpisodeRatingMap; // only relevant for type: "tv"
 	favorite: boolean;
 
 	// Cached display fields, captured at creation time so views can render
@@ -96,6 +100,7 @@ export function createDefaultFrontmatter(
 		date_started: null,
 		date_completed: null,
 		watched: type === "tv" ? {} : undefined,
+		episode_ratings: type === "tv" ? {} : undefined,
 		favorite: false,
 		title: enrichment.title,
 		year: enrichment.year,
@@ -140,6 +145,38 @@ export function toggleEpisode(
 		: [...current, episode].sort((a, b) => a - b);
 
 	return { ...watched, [season]: updated };
+}
+
+/** Returns the personal rating for one episode, if it has one. */
+export function getEpisodeRating(ratings: EpisodeRatingMap | undefined, season: number, episode: number): number | null {
+	return ratings?.[season]?.[episode] ?? null;
+}
+
+/**
+ * Sets or clears one episode rating without mutating the existing map. Empty
+ * season entries are removed so hand-readable frontmatter stays compact.
+ */
+export function setEpisodeRating(
+	ratings: EpisodeRatingMap,
+	season: number,
+	episode: number,
+	rating: number | null
+): EpisodeRatingMap {
+	const seasonRatings = { ...(ratings[season] ?? {}) };
+
+	if (rating === null) {
+		delete seasonRatings[episode];
+	} else {
+		seasonRatings[episode] = rating;
+	}
+
+	if (Object.keys(seasonRatings).length === 0) {
+		const next = { ...ratings };
+		delete next[season];
+		return next;
+	}
+
+	return { ...ratings, [season]: seasonRatings };
 }
 
 /** True once an episode's air date has passed (or is today). Episodes with no

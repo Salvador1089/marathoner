@@ -14,16 +14,27 @@ import { activateDashboardView } from "./views/activate-dashboard-view";
 import { activateUpcomingView } from "./views/activate-upcoming-view";
 import { activateLogView } from "./views/activate-log-view";
 import { repairLibrary, refreshOneTitleEntry, RepairResult, RepairProgressCallback } from "./repair";
-import { refreshOnePerson } from "./people";
-import type { LibraryEntry } from "./notes";
+import { parsePersonFrontmatter, refreshOnePerson, resolvePersonFolder } from "./people";
+import { getLibraryEntries, type LibraryEntry } from "./notes";
 import { pushLogEntry } from "./activity-log";
+import { ensureImageCached, isImageCached, type ImageKind } from "./image-cache";
+import { ensureFolderExists } from "./vault-helpers";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const IMAGE_CACHE_CONCURRENCY = 4;
+
+interface ImageCacheTask {
+	kind: ImageKind;
+	tmdbId: number;
+	path: string;
+}
 
 export default class MarathonerPlugin extends Plugin {
 	settings!: MarathonerSettings;
 	tmdb!: TmdbClient;
 	isRefreshing = false;
+	isCachingImages = false;
+	private imageCacheGeneration = 0;
 
 	async onload() {
 		await this.loadSettings();
@@ -90,10 +101,16 @@ export default class MarathonerPlugin extends Plugin {
 		});
 
 		// Deferred until after startup - never block Obsidian's boot on network calls.
-		this.app.workspace.onLayoutReady(() => this.maybeAutoRefresh());
+		this.app.workspace.onLayoutReady(() => {
+			void this.runStartupTasks();
+		});
 	}
 
-	onunload() {}
+	onunload() {
+		// Let in-flight requests finish, but stop workers from starting any more
+		// downloads after the plugin has been disabled/reloaded.
+		this.imageCacheGeneration += 1;
+	}
 
 	async loadSettings() {
 		const data = await this.loadData();
@@ -112,6 +129,97 @@ export default class MarathonerPlugin extends Plugin {
 
 	private createTmdbClient(): TmdbClient {
 		return new TmdbClient(this.settings.tmdbApiKey, this.settings.tmdbLanguage);
+	}
+
+	private async runStartupTasks(): Promise<void> {
+		await this.maybeAutoRefresh();
+		if (this.settings.storeImagesLocally) {
+			await this.cacheMissingImages(false);
+		}
+	}
+
+	/**
+	 * Backfills posters/photos already represented in cached frontmatter. This
+	 * needs no TMDB API calls: it downloads the known image paths directly and
+	 * can safely resume on the next startup because existing files are skipped.
+	 */
+	async cacheMissingImages(showNotice = true): Promise<void> {
+		if (!this.settings.storeImagesLocally || this.isCachingImages) return;
+
+		const tasks: ImageCacheTask[] = [];
+		const seen = new Set<string>();
+		const addTask = (kind: ImageKind, tmdbId: number, path: string | null): void => {
+			if (!path) return;
+			const key = `${kind}:${tmdbId}`;
+			if (seen.has(key) || isImageCached(this.app, this.settings.imagesFolder, kind, tmdbId, path)) return;
+			seen.add(key);
+			tasks.push({ kind, tmdbId, path });
+		};
+
+		for (const { frontmatter } of getLibraryEntries(this.app, this.settings.libraryFolder)) {
+			addTask("title", frontmatter.tmdb_id, frontmatter.poster_path);
+		}
+
+		const peopleFolder = resolvePersonFolder(this.settings.peopleFolder);
+		for (const file of this.app.vault.getMarkdownFiles()) {
+			if (!file.path.startsWith(`${peopleFolder}/`)) continue;
+			const raw = this.app.metadataCache.getFileCache(file)?.frontmatter;
+			const person = parsePersonFrontmatter(raw);
+			if (person) addTask("person", person.tmdb_id, person.profile_path);
+		}
+
+		if (tasks.length === 0) {
+			if (showNotice) new Notice("All Marathoner images are already stored locally.");
+			return;
+		}
+
+		this.isCachingImages = true;
+		const generation = ++this.imageCacheGeneration;
+		const notice = showNotice ? new Notice(`Storing images locally... 0/${tasks.length}`, 0) : null;
+		let nextTask = 0;
+		let completed = 0;
+		let cached = 0;
+
+		try {
+			await ensureFolderExists(this.app.vault, this.settings.imagesFolder);
+
+			const worker = async (): Promise<void> => {
+				while (
+					this.settings.storeImagesLocally &&
+					generation === this.imageCacheGeneration &&
+					nextTask < tasks.length
+				) {
+					const task = tasks[nextTask++];
+					const success = await ensureImageCached(
+						this.app,
+						true,
+						this.settings.imagesFolder,
+						task.kind,
+						task.tmdbId,
+						task.path
+					);
+					if (success) cached += 1;
+					completed += 1;
+					if (notice && (completed === tasks.length || completed % 5 === 0)) {
+						notice.setMessage(`Storing images locally... ${completed}/${tasks.length}`);
+					}
+				}
+			};
+
+			const workerCount = Math.min(IMAGE_CACHE_CONCURRENCY, tasks.length);
+			await Promise.all(Array.from({ length: workerCount }, () => worker()));
+		} catch (err) {
+			if (showNotice && generation === this.imageCacheGeneration) {
+				new Notice(`Could not store images locally: ${(err as Error).message}`);
+			}
+		} finally {
+			notice?.hide();
+			if (generation === this.imageCacheGeneration) this.isCachingImages = false;
+		}
+
+		if (showNotice && completed > 0 && generation === this.imageCacheGeneration) {
+			new Notice(`Stored ${cached} of ${completed} image(s) locally.`);
+		}
 	}
 
 	/**

@@ -132,6 +132,8 @@
 }
 
 .marathoner-card-poster {
+	position: absolute;
+	inset: 0;
 	width: 100%;
 	height: 100%;
 	object-fit: cover;
@@ -733,6 +735,28 @@
 .marathoner-episode-date {
 	color: var(--text-muted);
 	font-size: var(--font-ui-smaller);
+	flex-shrink: 0;
+}
+
+.marathoner-episode-rating {
+	display: flex;
+	align-items: center;
+	gap: 1px;
+	flex-shrink: 0;
+}
+
+.marathoner-episode-rating-star svg {
+	width: 12px;
+	height: 12px;
+}
+
+.marathoner-episode-rating-value {
+	order: 2;
+	min-width: 1.2em;
+	margin-left: var(--size-2-1);
+	color: var(--text-muted);
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-smaller);
 }
 
 .marathoner-episode-future {
@@ -749,6 +773,20 @@
 	font-size: var(--font-ui-smaller);
 	font-weight: 500;
 	flex-shrink: 0;
+}
+
+@media (max-width: 700px) {
+	.marathoner-episode-row {
+		flex-wrap: wrap;
+	}
+
+	.marathoner-episode-title {
+		min-width: calc(100% - 36px);
+	}
+
+	.marathoner-episode-rating {
+		margin-left: 30px;
+	}
 }
 
 .marathoner-chip-row,

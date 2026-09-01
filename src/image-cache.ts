@@ -15,6 +15,18 @@ function localImagePath(imagesFolder: string, kind: ImageKind, tmdbId: number, p
 	return normalizePath(`${base}/${kind}-${tmdbId}.${ext}`);
 }
 
+/** True when the requested poster/photo already exists in the local vault cache. */
+export function isImageCached(
+	app: App,
+	imagesFolder: string,
+	kind: ImageKind,
+	tmdbId: number,
+	posterPath: string | null
+): boolean {
+	if (!posterPath) return false;
+	return app.vault.getAbstractFileByPath(localImagePath(imagesFolder, kind, tmdbId, posterPath)) instanceof TFile;
+}
+
 /**
  * Downloads and saves a poster/photo into the vault if it isn't already
  * cached. Safe to call unconditionally - no-ops if storing locally is off,
@@ -27,21 +39,23 @@ export async function ensureImageCached(
 	kind: ImageKind,
 	tmdbId: number,
 	posterPath: string | null
-): Promise<void> {
-	if (!storeImagesLocally || !posterPath) return;
+): Promise<boolean> {
+	if (!storeImagesLocally || !posterPath) return false;
 
 	const path = localImagePath(imagesFolder, kind, tmdbId, posterPath);
-	if (app.vault.getAbstractFileByPath(path)) return;
+	if (app.vault.getAbstractFileByPath(path)) return true;
 
 	const remoteUrl = TmdbClient.posterUrl(posterPath, LOCAL_CACHE_SIZE);
-	if (!remoteUrl) return;
+	if (!remoteUrl) return false;
 
 	try {
 		const response = await requestUrl({ url: remoteUrl });
 		await ensureFolderExists(app.vault, imagesFolder);
 		await app.vault.createBinary(path, response.arrayBuffer);
+		return true;
 	} catch {
 		// Best-effort - rendering falls back to the remote URL if this failed.
+		return false;
 	}
 }
 

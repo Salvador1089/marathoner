@@ -209,11 +209,13 @@ export class MarathonerSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Store images locally")
-			.setDesc("Download posters and photos into the vault instead of loading them from TMDB every time.")
+			.setDesc("Download posters and photos into the vault instead of loading them from TMDB every time. Existing images are filled in automatically in the background when enabled.")
 			.addToggle((toggle) =>
 				toggle.setValue(this.plugin.settings.storeImagesLocally).onChange(async (value) => {
+					const wasEnabled = this.plugin.settings.storeImagesLocally;
 					this.plugin.settings.storeImagesLocally = value;
 					await this.plugin.saveSettings();
+					if (value && !wasEnabled) void this.plugin.cacheMissingImages();
 				})
 			);
 

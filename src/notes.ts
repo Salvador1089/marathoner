@@ -1,5 +1,5 @@
 import { App, TFile, normalizePath } from "obsidian";
-import { ensureFolderExists } from "./vault-helpers";
+import { ensureFolderExists, waitForMetadataRefresh } from "./vault-helpers";
 import {
 	createDefaultFrontmatter,
 	MediaType,
@@ -7,6 +7,7 @@ import {
 	TitleEnrichment,
 	WatchStatus,
 	WatchedMap,
+	EpisodeRatingMap,
 	CachedSeason,
 } from "./models/title";
 
@@ -166,7 +167,7 @@ function renderNoteContent(fm: TitleFrontmatter): string {
 		`date_last_watched: ${fm.date_last_watched ? yamlString(fm.date_last_watched) : "null"}`,
 		`date_started: ${fm.date_started ?? "null"}`,
 		`date_completed: ${fm.date_completed ?? "null"}`,
-		...(fm.type === "tv" ? ["watched: {}"] : []),
+		...(fm.type === "tv" ? ["watched: {}", "episode_ratings: {}"] : []),
 		`director: ${yamlStringList(fm.director)}`,
 		`director_ids: ${yamlNumberList(fm.director_ids)}`,
 		`cast: ${yamlStringList(fm.cast)}`,
@@ -197,6 +198,38 @@ function toNumberArray(value: unknown): number[] {
 	return Array.isArray(value) ? value.filter((v): v is number => typeof v === "number") : [];
 }
 
+/** Sanitizes hand-edited YAML and older notes into valid 1-10 episode ratings. */
+function toEpisodeRatingMap(value: unknown): EpisodeRatingMap {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+
+	const ratings: EpisodeRatingMap = {};
+	for (const [seasonKey, rawSeason] of Object.entries(value)) {
+		const season = Number(seasonKey);
+		if (!Number.isInteger(season) || season < 0 || !rawSeason || typeof rawSeason !== "object" || Array.isArray(rawSeason)) {
+			continue;
+		}
+
+		const seasonRatings: Record<number, number> = {};
+		for (const [episodeKey, rawRating] of Object.entries(rawSeason)) {
+			const episode = Number(episodeKey);
+			if (
+				Number.isInteger(episode) &&
+				episode >= 0 &&
+				typeof rawRating === "number" &&
+				Number.isInteger(rawRating) &&
+				rawRating >= 1 &&
+				rawRating <= 10
+			) {
+				seasonRatings[episode] = rawRating;
+			}
+		}
+
+		if (Object.keys(seasonRatings).length > 0) ratings[season] = seasonRatings;
+	}
+
+	return ratings;
+}
+
 /**
  * Parses raw frontmatter (as returned by Obsidian's metadata cache) into a
  * typed TitleFrontmatter, or null if it doesn't look like a Marathoner note.
@@ -221,6 +254,7 @@ export function parseTitleFrontmatter(raw: Record<string, unknown> | undefined):
 		date_started: typeof raw.date_started === "string" ? raw.date_started : null,
 		date_completed: typeof raw.date_completed === "string" ? raw.date_completed : null,
 		watched: (raw.watched as WatchedMap | undefined) ?? (raw.type === "tv" ? {} : undefined),
+		episode_ratings: raw.type === "tv" ? toEpisodeRatingMap(raw.episode_ratings) : undefined,
 		title: typeof raw.title === "string" ? raw.title : "Untitled",
 		year: typeof raw.year === "string" || typeof raw.year === "number" ? String(raw.year) : null,
 		poster_path: typeof raw.poster_path === "string" ? raw.poster_path : null,
@@ -328,20 +362,25 @@ export async function writeEpisodesCache(app: App, file: TFile, seasons: CachedS
 	const block = `${EPISODES_HEADING}\n\n\`\`\`json\n${JSON.stringify(seasons)}\n\`\`\`\n\n`;
 
 	const existing = extractSection(content, EPISODES_HEADING);
+	let newContent: string;
 	if (existing) {
-		const newContent = content.slice(0, existing.start) + block + content.slice(existing.end).replace(/^\n+/, "\n");
-		await app.vault.modify(file, newContent);
-		return;
+		newContent = content.slice(0, existing.start) + block + content.slice(existing.end).replace(/^\n+/, "\n");
+	} else {
+		const notesIdx = content.indexOf(NOTES_HEADING);
+		if (notesIdx !== -1) {
+			newContent = content.slice(0, notesIdx) + block + content.slice(notesIdx);
+		} else {
+			const separator = content.endsWith("\n") ? "" : "\n";
+			newContent = `${content}${separator}\n${block}`;
+		}
 	}
 
-	const notesIdx = content.indexOf(NOTES_HEADING);
-	if (notesIdx !== -1) {
-		const newContent = content.slice(0, notesIdx) + block + content.slice(notesIdx);
-		await app.vault.modify(file, newContent);
-	} else {
-		const separator = content.endsWith("\n") ? "" : "\n";
-		await app.vault.modify(file, `${content}${separator}\n${block}`);
-	}
+	// Subscribe before writing so a very fast metadata-cache event cannot be
+	// missed between vault.modify() resolving and the listener being attached.
+	// DetailView reads this cache immediately after a title is added.
+	const metadataRefresh = waitForMetadataRefresh(app, file);
+	await app.vault.modify(file, newContent);
+	await metadataRefresh;
 }
 
 /** Reads the free-form text after the "## Notes" heading in a title note's body. */

@@ -1,6 +1,6 @@
-import { ItemView, WorkspaceLeaf, ButtonComponent, DropdownComponent, setIcon } from "obsidian";
+import { ItemView, WorkspaceLeaf, ButtonComponent, DropdownComponent, debounce, normalizePath, setIcon } from "obsidian";
 import type MarathonerPlugin from "../main";
-import { getLibraryEntries, LibraryEntry } from "../notes";
+import { getLibraryEntries, LibraryEntry, resolveTitleFolder } from "../notes";
 import { computeWatchlistSections } from "../watchlist-sections";
 import { resolveImageSrc } from "../image-cache";
 import { countWatchedEpisodes, type WatchStatus, type MediaType } from "../models/title";
@@ -16,6 +16,7 @@ import type { MarathonerSettings } from "../settings";
 export const VIEW_TYPE_WATCHLIST = "marathoner-watchlist";
 
 const STATUS_ORDER: WatchStatus[] = ["watching", "planned", "paused", "completed", "dropped"];
+const MAX_POSTER_PREFETCHES = 8;
 
 const STATUS_LABELS: Record<WatchStatus, string> = {
 	watching: "Watching",
@@ -45,6 +46,13 @@ export class WatchlistView extends ItemView {
 	private filterStatus: WatchStatus | "all" = "all";
 	private filterMinRating = 0;
 	private filterFavoritesOnly = false;
+	private posterVisibleObserver: IntersectionObserver | null = null;
+	private posterPrefetchObserver: IntersectionObserver | null = null;
+	private posterPrefetchQueue: HTMLImageElement[] = [];
+	private activePosterPrefetches = 0;
+	private posterRenderGeneration = 0;
+	private loadedPosterSources = new Set<string>();
+	private renderGridDebounced = debounce(() => this.renderGrid(), 120, true);
 
 	constructor(
 		leaf: WorkspaceLeaf,
@@ -66,18 +74,164 @@ export class WatchlistView extends ItemView {
 	}
 
 	async onOpen(): Promise<void> {
+		this.createPosterObserver();
 		this.render();
 
 		// Keep the grid in sync with vault changes made outside the plugin
-		// (renames, manual edits, deletions of title notes). Only the body
-		// re-renders, so the search input never loses focus.
-		this.registerEvent(this.app.vault.on("create", () => this.renderGrid()));
-		this.registerEvent(this.app.vault.on("delete", () => this.renderGrid()));
-		this.registerEvent(this.app.vault.on("rename", () => this.renderGrid()));
-		this.registerEvent(this.app.metadataCache.on("changed", () => this.renderGrid()));
+		// (renames, manual edits, deletions of title notes). Ignore person notes,
+		// assets, and unrelated vault files: rebuilding hundreds of poster cards
+		// for each of those changes made already-loaded images appear to reload.
+		this.registerEvent(
+			this.app.vault.on("create", (file) => {
+				if (this.isTitleNotePath(file.path)) this.renderGridDebounced();
+			})
+		);
+		this.registerEvent(
+			this.app.vault.on("delete", (file) => {
+				if (this.isTitleNotePath(file.path)) this.renderGridDebounced();
+			})
+		);
+		this.registerEvent(
+			this.app.vault.on("rename", (file, oldPath) => {
+				if (this.isTitleNotePath(file.path) || this.isTitleNotePath(oldPath)) this.renderGridDebounced();
+			})
+		);
+		this.registerEvent(
+			this.app.metadataCache.on("changed", (file) => {
+				if (this.isTitleNotePath(file.path)) this.renderGridDebounced();
+			})
+		);
 	}
 
-	async onClose(): Promise<void> {}
+	async onClose(): Promise<void> {
+		this.renderGridDebounced.cancel();
+		this.resetPosterLoading();
+		this.posterVisibleObserver = null;
+		this.posterPrefetchObserver = null;
+	}
+
+	private isTitleNotePath(path: string): boolean {
+		if (!path.toLowerCase().endsWith(".md")) return false;
+		const normalized = normalizePath(path);
+		const movieFolder = normalizePath(resolveTitleFolder(this.plugin.settings.libraryFolder, "movie"));
+		const tvFolder = normalizePath(resolveTitleFolder(this.plugin.settings.libraryFolder, "tv"));
+		return normalized.startsWith(`${movieFolder}/`) || normalized.startsWith(`${tvFolder}/`);
+	}
+
+	private createPosterObserver(): void {
+		if (typeof IntersectionObserver === "undefined") return;
+
+		// Visible cards always jump ahead of speculative prefetches. The root is
+		// the actual Obsidian view scroller, rather than the whole Electron window.
+		this.posterVisibleObserver = new IntersectionObserver(
+			(entries) => {
+				for (const entry of entries) {
+					if (!entry.isIntersecting) continue;
+					this.loadVisiblePoster(entry.target as HTMLImageElement);
+				}
+			},
+			{ root: this.contentEl, threshold: 0 }
+		);
+
+		this.posterPrefetchObserver = new IntersectionObserver(
+			(entries) => {
+				for (const entry of entries) {
+					if (!entry.isIntersecting) continue;
+					this.enqueuePosterPrefetch(entry.target as HTMLImageElement);
+				}
+			},
+			// A few rows are enough lead time. The queue below caps concurrent
+			// requests so a wide grid cannot launch 100+ downloads at once.
+			{ root: this.contentEl, rootMargin: "900px 300px", threshold: 0 }
+		);
+	}
+
+	private renderPoster(container: HTMLElement, src: string): void {
+		const image = container.createEl("img", {
+			attr: { decoding: "async", alt: "" },
+			cls: "marathoner-card-poster",
+		}) as HTMLImageElement;
+
+		if (this.loadedPosterSources.has(src)) {
+			image.src = src;
+			return;
+		}
+
+		if (!this.posterVisibleObserver || !this.posterPrefetchObserver) {
+			image.addEventListener("load", () => this.loadedPosterSources.add(src), { once: true });
+			image.src = src;
+			return;
+		}
+
+		image.dataset.posterSrc = src;
+		image.dataset.posterGeneration = String(this.posterRenderGeneration);
+		this.posterVisibleObserver.observe(image);
+		this.posterPrefetchObserver.observe(image);
+	}
+
+	private loadVisiblePoster(image: HTMLImageElement): void {
+		this.posterVisibleObserver?.unobserve(image);
+		this.posterPrefetchObserver?.unobserve(image);
+		image.setAttribute("fetchpriority", "high");
+
+		if (image.dataset.posterQueued === "true") {
+			this.posterPrefetchQueue = this.posterPrefetchQueue.filter((queued) => queued !== image);
+			delete image.dataset.posterQueued;
+		}
+
+		const src = image.dataset.posterSrc;
+		if (!src) return; // Already being prefetched; raising its priority is enough.
+		delete image.dataset.posterSrc;
+		image.addEventListener("load", () => this.loadedPosterSources.add(src), { once: true });
+		image.src = src;
+	}
+
+	private enqueuePosterPrefetch(image: HTMLImageElement): void {
+		this.posterPrefetchObserver?.unobserve(image);
+		if (!image.dataset.posterSrc || image.dataset.posterQueued === "true") return;
+
+		image.dataset.posterQueued = "true";
+		this.posterPrefetchQueue.push(image);
+		this.pumpPosterPrefetchQueue();
+	}
+
+	private pumpPosterPrefetchQueue(): void {
+		while (this.activePosterPrefetches < MAX_POSTER_PREFETCHES && this.posterPrefetchQueue.length > 0) {
+			const image = this.posterPrefetchQueue.shift()!;
+			delete image.dataset.posterQueued;
+			const src = image.dataset.posterSrc;
+			const generation = Number(image.dataset.posterGeneration);
+			if (!src || !image.isConnected || generation !== this.posterRenderGeneration) continue;
+
+			delete image.dataset.posterSrc;
+			image.setAttribute("fetchpriority", "low");
+			this.activePosterPrefetches += 1;
+
+			const finish = (): void => {
+				if (generation !== this.posterRenderGeneration) return;
+				this.activePosterPrefetches = Math.max(0, this.activePosterPrefetches - 1);
+				this.pumpPosterPrefetchQueue();
+			};
+			image.addEventListener(
+				"load",
+				() => {
+					this.loadedPosterSources.add(src);
+					finish();
+				},
+				{ once: true }
+			);
+			image.addEventListener("error", finish, { once: true });
+			image.src = src;
+		}
+	}
+
+	private resetPosterLoading(): void {
+		this.posterRenderGeneration += 1;
+		this.posterVisibleObserver?.disconnect();
+		this.posterPrefetchObserver?.disconnect();
+		this.posterPrefetchQueue = [];
+		this.activePosterPrefetches = 0;
+	}
 
 	private render(): void {
 		const container = this.contentEl;
@@ -100,7 +254,7 @@ export class WatchlistView extends ItemView {
 		searchInput.value = this.searchQuery;
 		searchInput.addEventListener("input", () => {
 			this.searchQuery = searchInput.value;
-			this.renderGrid();
+			this.renderGridDebounced();
 		});
 
 		toolbar.createDiv({ cls: "marathoner-toolbar-spacer" });
@@ -217,6 +371,9 @@ export class WatchlistView extends ItemView {
 	}
 
 	private renderGrid(): void {
+		// Drop observations for cards that are about to leave the DOM. New cards
+		// are registered as they are rendered below.
+		this.resetPosterLoading();
 		this.bodyEl.empty();
 
 		const allEntries = getLibraryEntries(this.app, this.plugin.settings.libraryFolder);
@@ -299,16 +456,14 @@ export class WatchlistView extends ItemView {
 			"title",
 			frontmatter.tmdb_id,
 			frontmatter.poster_path,
-			"w342"
+			// Cards are roughly 160px wide; w200 cuts remote transfer/decode cost
+			// substantially while retaining enough detail at this display size.
+			"w200"
 		);
+		const placeholder = posterWrap.createDiv({ cls: "marathoner-card-poster-placeholder" });
+		placeholder.setText(frontmatter.title.slice(0, 1));
 		if (posterUrl) {
-			posterWrap.createEl("img", {
-				attr: { src: posterUrl, loading: "lazy" },
-				cls: "marathoner-card-poster",
-			});
-		} else {
-			const placeholder = posterWrap.createDiv({ cls: "marathoner-card-poster-placeholder" });
-			placeholder.setText(frontmatter.title.slice(0, 1));
+			this.renderPoster(posterWrap, posterUrl);
 		}
 
 		renderStatusBadge(card, frontmatter.status);
