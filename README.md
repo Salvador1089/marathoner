@@ -87,6 +87,30 @@ automatic refresh frequency, whether to create person notes for cast/directors,
 and whether to store poster/photo images locally in the vault. Enabling local
 images automatically fills in missing posters and photos in the background.
 
+## Custom covers
+
+Open a movie or TV show in Marathoner and use the image button next to its
+title to choose a cover from your device. JPEG, PNG, WebP, GIF, and AVIF files
+up to 20 MB are supported. The selected image is copied into the configured
+images folder in your vault and is then used across the watchlist, dashboard,
+upcoming releases, title details, and person filmographies.
+
+Custom covers work independently of the **Store images locally** setting. Use
+the restore button next to the title at any time to return to the original TMDB
+artwork; Marathoner removes the replaced managed custom file automatically.
+
+## Mobile use
+
+Marathoner uses the same plugin installation on desktop, Android, and iOS—no
+separate mobile version is required. On phones, the interface automatically
+switches to compact responsive layouts with consistent watchlist grids,
+touch-sized actions, stacked detail pages, and native selectors for overall
+and per-episode ratings.
+
+Choosing a custom cover opens the device's native photo/file picker. Calendar
+exports use the native sharing sheet when the mobile platform supports it and
+fall back to a regular `.ics` download otherwise.
+
 ## Data model
 
 Each title and person is stored as a regular Markdown note with structured
