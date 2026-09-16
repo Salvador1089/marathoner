@@ -1,6 +1,7 @@
 import { App, TFile, normalizePath, requestUrl } from "obsidian";
 import { ensureFolderExists } from "./vault-helpers";
 import { TmdbClient } from "./tmdb/client";
+import type { MediaType } from "./models/title";
 
 export type ImageKind = "title" | "person";
 
@@ -8,6 +9,14 @@ export type ImageKind = "title" | "person";
 // displayed smaller (thumbnails), and avoids storing multiple sizes of the
 // same image. Remote mode still requests whatever size fits the context.
 const LOCAL_CACHE_SIZE = "w500";
+const MAX_CUSTOM_COVER_BYTES = 20 * 1024 * 1024;
+const CUSTOM_COVER_EXTENSIONS: Record<string, string> = {
+	"image/jpeg": "jpg",
+	"image/png": "png",
+	"image/webp": "webp",
+	"image/gif": "gif",
+	"image/avif": "avif",
+};
 
 function localImagePath(imagesFolder: string, kind: ImageKind, tmdbId: number, posterPath: string): string {
 	const ext = posterPath.split(".").pop() || "jpg";
@@ -85,4 +94,80 @@ export function resolveImageSrc(
 	}
 
 	return TmdbClient.posterUrl(posterPath, remoteSize);
+}
+
+/** Resolves a title's custom vault cover first, then falls back to the normal cached/TMDB poster. */
+export function resolveTitleImageSrc(
+	app: App,
+	storeImagesLocally: boolean,
+	imagesFolder: string,
+	tmdbId: number,
+	posterPath: string | null,
+	customPosterPath: string | null,
+	remoteSize: "w200" | "w342" | "w500" = "w342"
+): string | null {
+	if (customPosterPath) {
+		const customFile = app.vault.getAbstractFileByPath(normalizePath(customPosterPath));
+		if (customFile instanceof TFile) return app.vault.getResourcePath(customFile);
+	}
+
+	return resolveImageSrc(app, storeImagesLocally, imagesFolder, "title", tmdbId, posterPath, remoteSize);
+}
+
+/** Copies a user-selected raster image into Marathoner's managed assets folder. */
+export async function saveCustomTitleCover(
+	app: App,
+	imagesFolder: string,
+	type: MediaType,
+	tmdbId: number,
+	source: File
+): Promise<string> {
+	if (source.size > MAX_CUSTOM_COVER_BYTES) {
+		throw new Error("The selected image is larger than 20 MB.");
+	}
+
+	const nameExtension = source.name.split(".").pop()?.toLowerCase();
+	const allowedNameExtension = nameExtension && ["jpg", "jpeg", "png", "webp", "gif", "avif"].includes(nameExtension)
+		? nameExtension === "jpeg" ? "jpg" : nameExtension
+		: null;
+	const extension = CUSTOM_COVER_EXTENSIONS[source.type] ?? allowedNameExtension;
+	if (!extension) {
+		throw new Error("Choose a JPG, PNG, WebP, GIF, or AVIF image.");
+	}
+
+	await ensureFolderExists(app.vault, imagesFolder);
+	const base = imagesFolder.replace(/\/+$/, "");
+	// A unique filename also acts as a cache-buster when replacing a cover with
+	// another image of the same format; Chromium cannot reuse the old resource.
+	const path = normalizePath(`${base}/custom-title-${type}-${tmdbId}-${Date.now()}.${extension}`);
+	const data = await source.arrayBuffer();
+	const existing = app.vault.getAbstractFileByPath(path);
+	if (existing instanceof TFile) {
+		await app.vault.modifyBinary(existing, data);
+	} else {
+		await app.vault.createBinary(path, data);
+	}
+	return path;
+}
+
+/** Trashes only covers created by saveCustomTitleCover; arbitrary vault images are never removed. */
+export async function removeManagedCustomTitleCover(
+	app: App,
+	path: string | null,
+	type: MediaType,
+	tmdbId: number
+): Promise<void> {
+	if (!path) return;
+	const file = app.vault.getAbstractFileByPath(normalizePath(path));
+	const managedPrefix = `custom-title-${type}-${tmdbId}`;
+	if (
+		!(file instanceof TFile) ||
+		(!file.name.startsWith(`${managedPrefix}-`) && !file.name.startsWith(`${managedPrefix}.`))
+	) return;
+	try {
+		await app.fileManager.trashFile(file);
+	} catch {
+		// Best-effort cleanup. The frontmatter already points at the new/fallback
+		// cover, so an orphaned old asset must not make the UI action fail.
+	}
 }

@@ -1,9 +1,9 @@
 import { ItemView, WorkspaceLeaf, TFile, ButtonComponent, Notice, ViewStateResult } from "obsidian";
 import type MarathonerPlugin from "../main";
-import { resolveImageSrc } from "../image-cache";
+import { resolveImageSrc, resolveTitleImageSrc } from "../image-cache";
 import { parsePersonFrontmatter, readBiography, readFilmographyCache } from "../people";
 import type { PersonFrontmatter } from "../models/person";
-import { getLibraryEntries } from "../notes";
+import { getLibraryEntries, type LibraryEntry } from "../notes";
 import { openTitleDetail } from "./open-title-detail";
 import { addTitleFromTmdb } from "../add-title";
 import type { MediaType } from "../models/title";
@@ -224,9 +224,9 @@ export class PersonDetailView extends ItemView {
 		cast: TmdbCombinedCreditCast[],
 		crew: TmdbCombinedCreditCrew[]
 	): void {
-		const libraryMap = new Map<string, TFile>();
+		const libraryMap = new Map<string, LibraryEntry>();
 		for (const entry of getLibraryEntries(this.app, this.plugin.settings.libraryFolder)) {
-			libraryMap.set(`${entry.frontmatter.type}-${entry.frontmatter.tmdb_id}`, entry.file);
+			libraryMap.set(`${entry.frontmatter.type}-${entry.frontmatter.tmdb_id}`, entry);
 		}
 
 		const actingItems = dedupeByKey(
@@ -264,7 +264,7 @@ export class PersonDetailView extends ItemView {
 		container: HTMLElement,
 		heading: string,
 		items: FilmographyItem[],
-		libraryMap: Map<string, TFile>
+		libraryMap: Map<string, LibraryEntry>
 	): void {
 		const sorted = [...items].sort((a, b) => (b.year ?? "").localeCompare(a.year ?? ""));
 
@@ -272,17 +272,17 @@ export class PersonDetailView extends ItemView {
 		const shelf = container.createDiv({ cls: "marathoner-shelf" });
 
 		for (const item of sorted) {
-			const existingFile = libraryMap.get(`${item.type}-${item.tmdbId}`);
-			this.renderFilmographyCard(shelf, item, existingFile);
+			const existingEntry = libraryMap.get(`${item.type}-${item.tmdbId}`);
+			this.renderFilmographyCard(shelf, item, existingEntry);
 		}
 	}
 
-	private renderFilmographyCard(container: HTMLElement, item: FilmographyItem, existingFile?: TFile): void {
+	private renderFilmographyCard(container: HTMLElement, item: FilmographyItem, existingEntry?: LibraryEntry): void {
 		const card = container.createDiv({ cls: "marathoner-card marathoner-card-shelf" });
 
 		card.addEventListener("click", async () => {
-			if (existingFile) {
-				await openTitleDetail(this.app, existingFile);
+			if (existingEntry) {
+				await openTitleDetail(this.app, existingEntry.file);
 				return;
 			}
 
@@ -298,13 +298,13 @@ export class PersonDetailView extends ItemView {
 		});
 
 		const posterWrap = card.createDiv({ cls: "marathoner-card-poster-wrap" });
-		const posterUrl = resolveImageSrc(
+		const posterUrl = resolveTitleImageSrc(
 			this.app,
 			this.plugin.settings.storeImagesLocally,
 			this.plugin.settings.imagesFolder,
-			"title",
 			item.tmdbId,
 			item.posterPath,
+			existingEntry?.frontmatter.custom_poster_path ?? null,
 			"w342"
 		);
 		if (posterUrl) {
@@ -313,7 +313,7 @@ export class PersonDetailView extends ItemView {
 			posterWrap.createDiv({ cls: "marathoner-card-poster-placeholder" }).setText(item.title.slice(0, 1));
 		}
 
-		if (!existingFile) {
+		if (!existingEntry) {
 			posterWrap.createDiv({ cls: "marathoner-filmography-add-badge", text: "+ Add" });
 		}
 

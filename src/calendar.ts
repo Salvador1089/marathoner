@@ -1,3 +1,5 @@
+import { Platform } from "obsidian";
+
 /**
  * Deliberately the simplest possible calendar integration: no OAuth, no
  * account, no server. A "quick add" link just opens Google Calendar's own
@@ -56,15 +58,37 @@ export function buildIcsFile(events: IcsEvent[]): string {
 	return lines.join("\r\n");
 }
 
-/** Triggers a browser-style file download - works fine inside Obsidian's Electron webview, same as any other web page. */
-export function downloadTextFile(filename: string, content: string, mimeType: string): void {
+/** Shares calendar files through the native mobile sheet when available, with
+ * the regular browser download as a desktop and compatibility fallback. */
+export async function downloadTextFile(
+	filename: string,
+	content: string,
+	mimeType: string
+): Promise<"shared" | "downloaded" | "cancelled"> {
 	const blob = new Blob([content], { type: mimeType });
+	const file = new File([blob], filename, { type: mimeType });
+
+	if (Platform.isMobileApp && navigator.share && navigator.canShare?.({ files: [file] })) {
+		try {
+			await navigator.share({ files: [file], title: filename });
+			return "shared";
+		} catch (err) {
+			if ((err as DOMException).name === "AbortError") return "cancelled";
+			// Some mobile WebViews advertise file sharing but reject it at runtime.
+			// In that case the download path below is still worth trying.
+		}
+	}
+
 	const url = URL.createObjectURL(blob);
 	const a = document.createElement("a");
 	a.href = url;
 	a.download = filename;
+	a.hidden = true;
+	document.body.appendChild(a);
 	a.click();
-	URL.revokeObjectURL(url);
+	a.remove();
+	window.setTimeout(() => URL.revokeObjectURL(url), 0);
+	return "downloaded";
 }
 
 function shiftDateIso(dateIso: string, days: number): string {

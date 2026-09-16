@@ -354,6 +354,7 @@
 .marathoner-detail-title-row {
 	display: flex;
 	align-items: center;
+	flex-wrap: wrap;
 	gap: var(--size-4-2);
 }
 
@@ -623,6 +624,20 @@
 	gap: 2px;
 }
 
+/* Native selects are used instead of ten small stars on narrow/touch
+   screens. They stay in the DOM on desktop so changing viewport size does
+   not require rebuilding the view. */
+.marathoner-rating-select {
+	display: none;
+	min-height: 40px;
+	padding: 0 var(--size-4-3);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: var(--background-primary);
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+}
+
 .marathoner-star {
 	display: flex;
 	cursor: pointer;
@@ -743,6 +758,12 @@
 	align-items: center;
 	gap: 1px;
 	flex-shrink: 0;
+}
+
+.marathoner-episode-rating-stars {
+	display: flex;
+	align-items: center;
+	gap: 1px;
 }
 
 .marathoner-episode-rating-star svg {
@@ -1271,6 +1292,8 @@
 .marathoner-upcoming-filter-label {
 	color: var(--text-muted);
 	font-size: var(--font-ui-small);
+	cursor: pointer;
+	user-select: none;
 }
 
 .marathoner-filter-row {
@@ -1310,4 +1333,402 @@
 
 .marathoner-filter-toggle-active .marathoner-filter-toggle-icon svg {
 	fill: var(--mrt-red, #f38ba8);
+}
+
+/* Mobile layout ----------------------------------------------------------
+   Obsidian's phone viewport is narrow in portrait, so the structural rules
+   key off its width. Pointer-specific rules below also cover touch tablets
+   and phones in landscape whose viewports can be wider than this. */
+@media (max-width: 700px) {
+	.marathoner-watchlist,
+	.marathoner-dashboard,
+	.marathoner-detail,
+	.marathoner-upcoming,
+	.marathoner-log-view {
+		padding: var(--size-4-3);
+		padding-bottom: calc(var(--size-4-6) + env(safe-area-inset-bottom, 0px));
+	}
+
+	.marathoner-toolbar {
+		align-items: stretch;
+		flex-wrap: wrap;
+		gap: var(--size-4-2);
+	}
+
+	.marathoner-toolbar-spacer {
+		display: none;
+	}
+
+	.marathoner-search-input {
+		flex: 1 0 100%;
+		width: 100%;
+		min-width: 0;
+		min-height: 44px;
+	}
+
+	.marathoner-toolbar > button {
+		flex: 1 1 auto;
+		min-height: 40px;
+	}
+
+	.marathoner-upcoming-filter {
+		flex: 1 0 100%;
+		justify-content: space-between;
+		min-height: 40px;
+	}
+
+	.marathoner-filter-row > select,
+	.marathoner-filter-row > button,
+	.marathoner-filter-toggle {
+		flex: 1 1 130px;
+		min-height: 40px;
+	}
+
+	.marathoner-filter-toggle {
+		justify-content: center;
+	}
+
+	.marathoner-watchlist .marathoner-grid,
+	.marathoner-watchlist .marathoner-shelf {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: var(--size-4-2);
+	}
+
+	.marathoner-watchlist .marathoner-shelf {
+		overflow: visible;
+		padding-bottom: 0;
+	}
+
+	.marathoner-watchlist .marathoner-card-shelf {
+		width: auto;
+	}
+
+	.marathoner-watchlist .marathoner-status-badge {
+		padding: 2px 4px;
+		font-size: 8px;
+	}
+
+	.marathoner-watchlist .marathoner-card-info {
+		padding: var(--size-4-2) var(--size-2-2) var(--size-2-2);
+	}
+
+	.marathoner-watchlist .marathoner-card-title {
+		font-size: var(--font-ui-smaller);
+	}
+
+	.marathoner-watchlist .marathoner-card-meta {
+		gap: var(--size-2-2);
+	}
+
+	.marathoner-card-info::before {
+		backdrop-filter: none;
+		-webkit-backdrop-filter: none;
+	}
+
+	.marathoner-card-favorite {
+		width: 38px;
+		height: 38px;
+	}
+
+	.marathoner-card-favorite svg {
+		width: 17px;
+		height: 17px;
+	}
+
+	.marathoner-detail-header {
+		flex-direction: column;
+		align-items: stretch;
+	}
+
+	.marathoner-detail-poster {
+		align-self: center;
+		width: min(48vw, 180px);
+	}
+
+	.marathoner-detail-title-row > h2 {
+		flex: 1 0 100%;
+		margin-bottom: var(--size-2-1);
+	}
+
+	.marathoner-detail-title-row > button,
+	.marathoner-sync-btn {
+		min-width: 40px;
+		min-height: 40px;
+	}
+
+	.marathoner-detail-controls {
+		align-items: stretch;
+		gap: var(--size-4-3);
+	}
+
+	.marathoner-detail-controls > select,
+	.marathoner-detail-controls > button {
+		min-height: 44px;
+	}
+
+	.marathoner-rating-wrapper {
+		justify-content: space-between;
+		width: 100%;
+		min-height: 44px;
+	}
+
+	.marathoner-star-rating,
+	.marathoner-episode-rating-stars {
+		display: none;
+	}
+
+	.marathoner-rating-select {
+		display: block;
+		min-height: 44px;
+	}
+
+	.marathoner-rating-wrapper > .marathoner-rating-value,
+	.marathoner-episode-rating-value {
+		display: none;
+	}
+
+	.marathoner-stats-row {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: var(--size-4-2);
+	}
+
+	.marathoner-stat-chip {
+		min-width: 0;
+	}
+
+	.marathoner-dates-row {
+		flex-direction: column;
+		gap: var(--size-4-3);
+	}
+
+	.marathoner-date-field {
+		flex-wrap: wrap;
+	}
+
+	.marathoner-date-input {
+		min-height: 40px;
+		flex: 1;
+	}
+
+	.marathoner-date-field > button {
+		min-height: 40px;
+	}
+
+	.marathoner-season-header {
+		flex-wrap: wrap;
+		min-height: 48px;
+	}
+
+	.marathoner-season-mark-btn {
+		flex: 1 0 calc(100% - 30px);
+		margin-left: 30px;
+		min-height: 40px;
+	}
+
+	.marathoner-episodes {
+		padding: var(--size-2-2);
+	}
+
+	.marathoner-episode-row {
+		gap: var(--size-4-2);
+		min-height: 52px;
+		padding: var(--size-4-2);
+	}
+
+	.marathoner-episode-toggle {
+		justify-content: center;
+		min-width: 32px;
+		min-height: 32px;
+	}
+
+	.marathoner-episode-title {
+		min-width: calc(100% - 42px);
+	}
+
+	.marathoner-episode-date {
+		margin-left: 40px;
+	}
+
+	.marathoner-episode-rating {
+		margin-left: auto;
+	}
+
+	.marathoner-episode-rating-select {
+		max-width: 150px;
+	}
+
+	.marathoner-upcoming-row {
+		display: grid;
+		grid-template-columns: 40px minmax(0, 1fr) auto;
+		grid-template-areas:
+			"poster info countdown"
+			"poster actions actions";
+		row-gap: var(--size-4-2);
+		padding: var(--size-4-3);
+	}
+
+	.marathoner-upcoming-row-thumb {
+		grid-area: poster;
+		align-self: start;
+	}
+
+	.marathoner-upcoming-row-info {
+		grid-area: info;
+	}
+
+	.marathoner-upcoming-row-countdown {
+		grid-area: countdown;
+	}
+
+	.marathoner-upcoming-row-actions {
+		grid-area: actions;
+		justify-content: flex-end;
+		gap: var(--size-4-2);
+	}
+
+	.marathoner-upcoming-row-action {
+		width: 40px;
+		height: 40px;
+		background: var(--background-primary-alt);
+	}
+
+	.marathoner-summary-grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	.marathoner-nerd-grid {
+		grid-template-columns: 1fr;
+	}
+
+	.marathoner-person-sidebar {
+		align-items: center;
+	}
+
+	.marathoner-person-facts-list {
+		align-self: stretch;
+	}
+
+	.marathoner-log-row {
+		align-items: stretch;
+		flex-direction: column;
+		gap: var(--size-2-1);
+	}
+
+	.marathoner-log-time {
+		width: auto;
+	}
+
+	.marathoner-migrate-row {
+		align-items: stretch;
+		flex-direction: column;
+		gap: var(--size-4-2);
+	}
+
+	.marathoner-migrate-label {
+		width: auto;
+	}
+
+	.marathoner-migrate-row input[type="file"],
+	.marathoner-migrate-row select {
+		max-width: 100%;
+		min-height: 44px;
+	}
+
+	.marathoner-confirm-buttons > button {
+		flex: 1;
+		min-height: 44px;
+	}
+}
+
+@media (max-width: 340px) {
+	.marathoner-watchlist .marathoner-grid,
+	.marathoner-watchlist .marathoner-shelf {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+}
+
+@media (max-width: 380px) {
+	.marathoner-summary-grid {
+		grid-template-columns: 1fr;
+	}
+
+	.marathoner-card-title {
+		font-size: var(--font-ui-smaller);
+	}
+}
+
+@media (hover: none), (pointer: coarse) {
+	.marathoner-card:hover {
+		transform: none;
+		box-shadow: none;
+	}
+
+	.marathoner-card-info::before {
+		backdrop-filter: none;
+		-webkit-backdrop-filter: none;
+	}
+
+	.marathoner-card:active {
+		transform: scale(0.985);
+	}
+
+	.marathoner-card,
+	.marathoner-person-link,
+	.marathoner-season-header,
+	.marathoner-episode-row,
+	.marathoner-upcoming-row,
+	.marathoner-upcoming-row-action,
+	.marathoner-filter-toggle {
+		touch-action: manipulation;
+	}
+
+	.marathoner-detail-title-row > button,
+	.marathoner-detail-controls > button,
+	.marathoner-toolbar > button,
+	.marathoner-date-field > button,
+	.marathoner-season-mark-btn,
+	.marathoner-confirm-buttons > button {
+		min-height: 44px;
+	}
+
+	.marathoner-search-input,
+	.marathoner-filter-row > select,
+	.marathoner-filter-toggle {
+		min-height: 44px;
+	}
+
+	.marathoner-sync-btn,
+	.marathoner-card-favorite,
+	.marathoner-upcoming-row-action {
+		min-width: 44px;
+		min-height: 44px;
+	}
+
+	.marathoner-star-rating,
+	.marathoner-episode-rating-stars {
+		display: none;
+	}
+
+	.marathoner-rating-select {
+		display: block;
+		min-height: 44px;
+	}
+
+	.marathoner-rating-wrapper > .marathoner-rating-value,
+	.marathoner-episode-rating-value {
+		display: none;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.marathoner-card,
+	.marathoner-card-progress-bar {
+		transition: none;
+	}
+
+	.marathoner-sync-btn.marathoner-spin svg {
+		animation-duration: 1.4s;
+	}
 }

@@ -36,6 +36,10 @@ it's been added.
   when every aired episode is watched.
 - **Per-episode ratings** on the same 1-10 scale as the overall show or movie
   rating.
+- **Custom covers** for any movie or TV show, stored directly in the vault
+  with a one-click return to the original TMDB artwork.
+- **Mobile-friendly interface** with responsive layouts, touch-sized controls,
+  and native rating and calendar sharing flows on phones and tablets.
 - **Offline-first**: synopsis, cast, crew, season/episode data, filmography,
   and posters are all cached locally at add time. Opening a note never hits
   the network - only a scheduled refresh (daily/weekly/manual, your choice)

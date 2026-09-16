@@ -10,7 +10,11 @@ import {
 	ViewStateResult,
 } from "obsidian";
 import type MarathonerPlugin from "../main";
-import { resolveImageSrc } from "../image-cache";
+import {
+	removeManagedCustomTitleCover,
+	resolveTitleImageSrc,
+	saveCustomTitleCover,
+} from "../image-cache";
 import { parseTitleFrontmatter, readNotesBody, writeNotesBody, readEpisodesCache } from "../notes";
 import { pruneOrphanedPersonNotes } from "../people";
 import { computeTitleStats } from "../title-stats";
@@ -205,13 +209,13 @@ export class DetailView extends ItemView {
 
 		const header = container.createDiv({ cls: "marathoner-detail-header" });
 
-		const posterUrl = resolveImageSrc(
+		const posterUrl = resolveTitleImageSrc(
 			this.app,
 			this.plugin.settings.storeImagesLocally,
 			this.plugin.settings.imagesFolder,
-			"title",
 			fm.tmdb_id,
 			fm.poster_path,
+			fm.custom_poster_path,
 			"w342"
 		);
 		if (posterUrl) {
@@ -235,6 +239,18 @@ export class DetailView extends ItemView {
 			});
 		favoriteBtn.buttonEl.addClass("marathoner-favorite-btn");
 		favoriteBtn.buttonEl.toggleClass("marathoner-favorite-active", fm.favorite);
+
+		new ButtonComponent(titleRow)
+			.setIcon("image-plus")
+			.setTooltip(fm.custom_poster_path ? "Change custom cover" : "Choose custom cover")
+			.onClick(() => this.chooseCustomCover(fm));
+
+		if (fm.custom_poster_path) {
+			new ButtonComponent(titleRow)
+				.setIcon("rotate-ccw")
+				.setTooltip("Restore TMDB cover")
+				.onClick(() => void this.restoreTmdbCover(fm));
+		}
 
 		if (fm.trailer_url) {
 			new ButtonComponent(titleRow)
@@ -330,6 +346,75 @@ export class DetailView extends ItemView {
 		this.renderNotesSection(container);
 	}
 
+	private chooseCustomCover(fm: TitleFrontmatter): void {
+		const input = document.createElement("input");
+		input.type = "file";
+		input.accept = "image/jpeg,image/png,image/webp,image/gif,image/avif";
+		input.hidden = true;
+		this.contentEl.appendChild(input);
+
+		const cleanup = (): void => input.remove();
+		input.addEventListener(
+			"change",
+			() => {
+				const source = input.files?.[0];
+				cleanup();
+				if (source) void this.applyCustomCover(fm, source);
+			},
+			{ once: true }
+		);
+		input.addEventListener("cancel", cleanup, { once: true });
+		input.click();
+	}
+
+	private async applyCustomCover(fm: TitleFrontmatter, source: File): Promise<void> {
+		const notice = new Notice(`Saving custom cover for "${fm.title}"...`, 0);
+		const previousPath = fm.custom_poster_path;
+
+		try {
+			const path = await saveCustomTitleCover(
+				this.app,
+				this.plugin.settings.imagesFolder,
+				fm.type,
+				fm.tmdb_id,
+				source
+			);
+			const updated = await this.updateFrontmatter((frontmatter) => {
+				frontmatter.custom_poster_path = path;
+				frontmatter.schema_version = CURRENT_SCHEMA_VERSION;
+			});
+			if (!updated) {
+				if (path !== previousPath) await removeManagedCustomTitleCover(this.app, path, fm.type, fm.tmdb_id);
+				return;
+			}
+
+			if (previousPath && previousPath !== path) {
+				await removeManagedCustomTitleCover(this.app, previousPath, fm.type, fm.tmdb_id);
+			}
+			await this.plugin.logAction(`"${fm.title}": custom cover changed.`);
+			if (this.currentFm) this.renderHeader(this.currentFm);
+			new Notice(`Custom cover saved for "${fm.title}".`);
+		} catch (err) {
+			new Notice(`Could not save custom cover: ${(err as Error).message}`);
+		} finally {
+			notice.hide();
+		}
+	}
+
+	private async restoreTmdbCover(fm: TitleFrontmatter): Promise<void> {
+		const previousPath = fm.custom_poster_path;
+		const updated = await this.updateFrontmatter((frontmatter) => {
+			frontmatter.custom_poster_path = null;
+			frontmatter.schema_version = CURRENT_SCHEMA_VERSION;
+		});
+		if (!updated) return;
+
+		await removeManagedCustomTitleCover(this.app, previousPath, fm.type, fm.tmdb_id);
+		await this.plugin.logAction(`"${fm.title}": restored the TMDB cover.`);
+		if (this.currentFm) this.renderHeader(this.currentFm);
+		new Notice(`Restored the TMDB cover for "${fm.title}".`);
+	}
+
 	private renderChipRow(container: HTMLElement, values: string[], chipClass: string): void {
 		const row = container.createDiv({ cls: "marathoner-chip-row" });
 		for (const value of values) {
@@ -411,6 +496,16 @@ export class DetailView extends ItemView {
 	private renderStarRating(container: HTMLElement, initialRating: number | null): void {
 		let currentRating = initialRating;
 		const starsRow = container.createDiv({ cls: "marathoner-star-rating" });
+		const mobileSelect = container.createEl("select", {
+			cls: "marathoner-rating-select",
+			attr: { "aria-label": "Your rating out of 10" },
+		}) as HTMLSelectElement;
+		mobileSelect.createEl("option", { value: "", text: "Not rated" });
+		for (let i = 1; i <= 10; i++) {
+			mobileSelect.createEl("option", { value: String(i), text: `${i} / 10` });
+		}
+		mobileSelect.value = currentRating !== null ? String(currentRating) : "";
+
 		const valueLabel = container.createSpan({
 			cls: "marathoner-rating-value",
 			text: currentRating !== null ? String(currentRating) : "-",
@@ -420,24 +515,40 @@ export class DetailView extends ItemView {
 		const paint = (value: number) => {
 			stars.forEach((star, i) => star.toggleClass("marathoner-star-filled", i < value));
 		};
+		const saveRating = async (next: number | null): Promise<void> => {
+			currentRating = next;
+			mobileSelect.value = next !== null ? String(next) : "";
+			valueLabel.setText(next !== null ? String(next) : "-");
+			paint(next ?? 0);
+			await this.updateFrontmatter((f) => {
+				f.rating = next;
+			});
+		};
 
 		for (let i = 1; i <= 10; i++) {
-			const star = starsRow.createDiv({ cls: "marathoner-star", attr: { "aria-label": String(i) } });
+			const star = starsRow.createDiv({
+				cls: "marathoner-star",
+				attr: { "aria-label": `Rate ${i} out of 10`, role: "button", tabindex: "0" },
+			});
 			setIcon(star, "star");
 			stars.push(star);
 
 			star.addEventListener("mouseenter", () => paint(i));
-			star.addEventListener("click", async () => {
+			star.addEventListener("click", () => {
 				const next = currentRating === i ? null : i;
-				currentRating = next;
-				valueLabel.setText(next !== null ? String(next) : "-");
-				paint(next ?? 0);
-				await this.updateFrontmatter((f) => {
-					f.rating = next;
-				});
+				void saveRating(next);
+			});
+			star.addEventListener("keydown", (event) => {
+				if (event.key !== "Enter" && event.key !== " ") return;
+				event.preventDefault();
+				void saveRating(currentRating === i ? null : i);
 			});
 		}
 
+		mobileSelect.addEventListener("change", () => {
+			const next = mobileSelect.value === "" ? null : Number(mobileSelect.value);
+			void saveRating(next);
+		});
 		starsRow.addEventListener("mouseleave", () => paint(currentRating ?? 0));
 		paint(currentRating ?? 0);
 	}
@@ -531,6 +642,9 @@ export class DetailView extends ItemView {
 						const f = this.getFile();
 						if (!f) return;
 						await this.app.fileManager.trashFile(f);
+						if (fm) {
+							await removeManagedCustomTitleCover(this.app, fm.custom_poster_path, fm.type, fm.tmdb_id);
+						}
 
 						const removedPeople = await pruneOrphanedPersonNotes(
 							this.app,
@@ -735,18 +849,48 @@ export class DetailView extends ItemView {
 			cls: "marathoner-episode-rating",
 			attr: { "aria-label": `Episode rating${currentRating !== null ? `: ${currentRating} out of 10` : ""}` },
 		});
+		const starsRow = wrapper.createDiv({ cls: "marathoner-episode-rating-stars" });
 		const stars: HTMLElement[] = [];
 		const valueLabel = wrapper.createSpan({
 			cls: "marathoner-episode-rating-value",
 			text: currentRating !== null ? String(currentRating) : "-",
 		});
+		const mobileSelect = wrapper.createEl("select", {
+			cls: "marathoner-rating-select marathoner-episode-rating-select",
+			attr: { "aria-label": "Episode rating out of 10" },
+		}) as HTMLSelectElement;
+		mobileSelect.createEl("option", { value: "", text: "Rate episode" });
+		for (let i = 1; i <= 10; i++) {
+			mobileSelect.createEl("option", { value: String(i), text: `${i} / 10` });
+		}
+		mobileSelect.value = currentRating !== null ? String(currentRating) : "";
 
 		const paint = (value: number): void => {
 			stars.forEach((star, i) => star.toggleClass("marathoner-star-filled", i < value));
 		};
 
+		const saveRating = async (next: number | null): Promise<void> => {
+			currentRating = next;
+			mobileSelect.value = next !== null ? String(next) : "";
+			valueLabel.setText(next !== null ? String(next) : "-");
+			wrapper.setAttribute("aria-label", `Episode rating${next !== null ? `: ${next} out of 10` : ""}`);
+			paint(next ?? 0);
+
+			const nextRatings = setEpisodeRating(this.currentEpisodeRatings, season, episode, next);
+			// Advance the local source of truth before awaiting disk I/O. A second
+			// quick change must build on this change, not on the previous map.
+			this.currentEpisodeRatings = nextRatings;
+			this.episodeRatingSaveQueue = this.episodeRatingSaveQueue.then(async () => {
+				await this.updateFrontmatter((fm) => {
+					fm.episode_ratings = nextRatings;
+					fm.schema_version = CURRENT_SCHEMA_VERSION;
+				});
+			});
+			await this.episodeRatingSaveQueue;
+		};
+
 		for (let i = 1; i <= 10; i++) {
-			const star = wrapper.createDiv({
+			const star = starsRow.createDiv({
 				cls: "marathoner-star marathoner-episode-rating-star",
 				attr: { "aria-label": `Rate ${i} out of 10`, role: "button", tabindex: "0" },
 			});
@@ -754,49 +898,33 @@ export class DetailView extends ItemView {
 			stars.push(star);
 
 			star.addEventListener("mouseenter", () => paint(i));
-			const saveRating = async (): Promise<void> => {
-				const next = currentRating === i ? null : i;
-				currentRating = next;
-				valueLabel.setText(next !== null ? String(next) : "-");
-				wrapper.setAttribute("aria-label", `Episode rating${next !== null ? `: ${next} out of 10` : ""}`);
-				paint(next ?? 0);
-
-				const nextRatings = setEpisodeRating(this.currentEpisodeRatings, season, episode, next);
-				// Advance the local source of truth before awaiting disk I/O. A second
-				// quick click must build on this change, not on the previous map.
-				this.currentEpisodeRatings = nextRatings;
-				this.episodeRatingSaveQueue = this.episodeRatingSaveQueue.then(() =>
-					this.updateFrontmatter((fm) => {
-						fm.episode_ratings = nextRatings;
-						fm.schema_version = CURRENT_SCHEMA_VERSION;
-					})
-				);
-				await this.episodeRatingSaveQueue;
-			};
-
 			star.addEventListener("click", (event) => {
 				event.stopPropagation();
-				void saveRating();
+				void saveRating(currentRating === i ? null : i);
 			});
 			star.addEventListener("keydown", (event) => {
 				if (event.key !== "Enter" && event.key !== " ") return;
 				event.preventDefault();
 				event.stopPropagation();
-				void saveRating();
+				void saveRating(currentRating === i ? null : i);
 			});
 		}
 
+		mobileSelect.addEventListener("change", () => {
+			const next = mobileSelect.value === "" ? null : Number(mobileSelect.value);
+			void saveRating(next);
+		});
 		wrapper.addEventListener("click", (event) => event.stopPropagation());
-		wrapper.addEventListener("mouseleave", () => paint(currentRating ?? 0));
+		starsRow.addEventListener("mouseleave", () => paint(currentRating ?? 0));
 		paint(currentRating ?? 0);
 	}
 
 	private async updateFrontmatter(
 		mutate: (fm: Record<string, unknown>) => void,
 		isWatchActivity = false
-	): Promise<void> {
+	): Promise<boolean> {
 		const file = this.getFile();
-		if (!file) return;
+		if (!file) return false;
 
 		try {
 			await this.app.fileManager.processFrontMatter(file, (fm) => {
@@ -814,8 +942,10 @@ export class DetailView extends ItemView {
 				mirror.date_modified = new Date().toISOString();
 				if (isWatchActivity) mirror.date_last_watched = new Date().toISOString();
 			}
+			return true;
 		} catch (err) {
 			new Notice(`Failed to update note: ${(err as Error).message}`);
+			return false;
 		}
 	}
 }

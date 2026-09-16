@@ -3,7 +3,7 @@ import type MarathonerPlugin from "../main";
 import { getLibraryEntries, readEpisodesCache } from "../notes";
 import { computeUpcoming, flattenEpisodes, UpcomingItem } from "../upcoming";
 import { openTitleDetail } from "./open-title-detail";
-import { resolveImageSrc } from "../image-cache";
+import { resolveTitleImageSrc } from "../image-cache";
 import { renderTypeChip } from "../ui/type-badge";
 import { activateDashboardView } from "./activate-dashboard-view";
 import { activateWatchlistView } from "./activate-watchlist-view";
@@ -114,10 +114,25 @@ export class UpcomingView extends ItemView {
 		});
 
 		const filterRow = toolbar.createDiv({ cls: "marathoner-upcoming-filter" });
-		filterRow.createSpan({ text: "Only watching & planned", cls: "marathoner-upcoming-filter-label" });
-		new ToggleComponent(filterRow).setValue(this.onlyActivelyTracked).onChange((value) => {
+		const filterLabel = filterRow.createSpan({
+			text: "Only watching & planned",
+			cls: "marathoner-upcoming-filter-label",
+			attr: { role: "button", tabindex: "0" },
+		});
+		const toggle = new ToggleComponent(filterRow).setValue(this.onlyActivelyTracked).onChange((value) => {
 			this.onlyActivelyTracked = value;
 			this.renderBody();
+		});
+		const toggleFromLabel = (): void => {
+			this.onlyActivelyTracked = !this.onlyActivelyTracked;
+			toggle.setValue(this.onlyActivelyTracked);
+			this.renderBody();
+		};
+		filterLabel.addEventListener("click", toggleFromLabel);
+		filterLabel.addEventListener("keydown", (event) => {
+			if (event.key !== "Enter" && event.key !== " ") return;
+			event.preventDefault();
+			toggleFromLabel();
 		});
 
 		toolbar.createDiv({ cls: "marathoner-toolbar-spacer" });
@@ -137,13 +152,13 @@ export class UpcomingView extends ItemView {
 		const row = container.createDiv({ cls: "marathoner-upcoming-row" });
 		row.addEventListener("click", () => openTitleDetail(this.app, entry.file));
 
-		const posterUrl = resolveImageSrc(
+		const posterUrl = resolveTitleImageSrc(
 			this.app,
 			this.plugin.settings.storeImagesLocally,
 			this.plugin.settings.imagesFolder,
-			"title",
 			fm.tmdb_id,
 			fm.poster_path,
+			fm.custom_poster_path,
 			"w200"
 		);
 		if (posterUrl) {
@@ -226,8 +241,13 @@ export class UpcomingView extends ItemView {
 			}))
 		);
 
-		downloadTextFile(`${fm.title} - Season ${season}.ics`, ics, "text/calendar");
-		new Notice(`Downloaded ${remaining.length} episode(s) for Season ${season}. Import the file into your calendar app.`);
+		const result = await downloadTextFile(`${fm.title} - Season ${season}.ics`, ics, "text/calendar");
+		if (result === "cancelled") return;
+		new Notice(
+			result === "shared"
+				? `Calendar file ready with ${remaining.length} episode(s) for Season ${season}.`
+				: `Downloaded ${remaining.length} episode(s) for Season ${season}. Import the file into your calendar app.`
+		);
 	}
 }
 

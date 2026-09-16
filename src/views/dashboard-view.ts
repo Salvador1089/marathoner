@@ -2,7 +2,7 @@ import { ItemView, WorkspaceLeaf, ButtonComponent, Notice } from "obsidian";
 import type MarathonerPlugin from "../main";
 import { getLibraryEntries, LibraryEntry } from "../notes";
 import { computeLibraryStats, formatMinutes, NameCount } from "../stats";
-import { resolveImageSrc } from "../image-cache";
+import { resolveTitleImageSrc } from "../image-cache";
 import { AddTitleModal } from "../modals/add-title-modal";
 import { openTitleDetail } from "./open-title-detail";
 import { openPersonDetail } from "./open-person-detail";
@@ -198,13 +198,13 @@ export class DashboardView extends ItemView {
 			item.addEventListener("click", () => openTitleDetail(this.app, entry.file));
 
 			const posterWrap = item.createDiv({ cls: "marathoner-recent-poster-wrap" });
-			const posterUrl = resolveImageSrc(
+			const posterUrl = resolveTitleImageSrc(
 				this.app,
 				this.plugin.settings.storeImagesLocally,
 				this.plugin.settings.imagesFolder,
-				"title",
 				entry.frontmatter.tmdb_id,
 				entry.frontmatter.poster_path,
+				entry.frontmatter.custom_poster_path,
 				"w200"
 			);
 			if (posterUrl) {

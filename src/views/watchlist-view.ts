@@ -2,7 +2,7 @@ import { ItemView, WorkspaceLeaf, ButtonComponent, DropdownComponent, debounce, 
 import type MarathonerPlugin from "../main";
 import { getLibraryEntries, LibraryEntry, resolveTitleFolder } from "../notes";
 import { computeWatchlistSections } from "../watchlist-sections";
-import { resolveImageSrc } from "../image-cache";
+import { resolveTitleImageSrc } from "../image-cache";
 import { countWatchedEpisodes, type WatchStatus, type MediaType } from "../models/title";
 import { AddTitleModal } from "../modals/add-title-modal";
 import { openTitleDetail } from "./open-title-detail";
@@ -449,13 +449,13 @@ export class WatchlistView extends ItemView {
 		});
 
 		const posterWrap = card.createDiv({ cls: "marathoner-card-poster-wrap" });
-		const posterUrl = resolveImageSrc(
+		const posterUrl = resolveTitleImageSrc(
 			this.app,
 			this.plugin.settings.storeImagesLocally,
 			this.plugin.settings.imagesFolder,
-			"title",
 			frontmatter.tmdb_id,
 			frontmatter.poster_path,
+			frontmatter.custom_poster_path,
 			// Cards are roughly 160px wide; w200 cuts remote transfer/decode cost
 			// substantially while retaining enough detail at this display size.
 			"w200"

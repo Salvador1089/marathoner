@@ -1,4 +1,4 @@
-export const CURRENT_SCHEMA_VERSION = 8;
+export const CURRENT_SCHEMA_VERSION = 9;
 
 export type MediaType = "movie" | "tv";
 
@@ -35,6 +35,7 @@ export interface TitleFrontmatter {
 	title: string;
 	year: string | null;
 	poster_path: string | null;
+	custom_poster_path: string | null; // user-selected vault image; takes precedence over poster_path
 	overview: string | null; // synopsis, cached so it's available offline too - never left as a "loading" placeholder
 	release_date: string | null; // movies: full TMDB release date. Null for TV (use last_episode_air_date instead).
 	last_episode_air_date: string | null; // TV only: air date of the most recently aired episode.
@@ -105,6 +106,7 @@ export function createDefaultFrontmatter(
 		title: enrichment.title,
 		year: enrichment.year,
 		poster_path: enrichment.posterPath,
+		custom_poster_path: null,
 		overview: enrichment.overview,
 		release_date: enrichment.releaseDate,
 		last_episode_air_date: enrichment.lastEpisodeAirDate,
