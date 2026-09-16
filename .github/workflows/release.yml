@@ -37,12 +37,18 @@ jobs:
             exit 1
           fi
 
-      - name: Create GitHub release
+      - name: Create or update GitHub release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           tag="${GITHUB_REF#refs/tags/}"
-          gh release create "$tag" \
-            --title "$tag" \
-            --generate-notes \
-            main.js manifest.json styles.css
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" \
+              --clobber \
+              main.js manifest.json styles.css
+          else
+            gh release create "$tag" \
+              --title "$tag" \
+              --generate-notes \
+              main.js manifest.json styles.css
+          fi
